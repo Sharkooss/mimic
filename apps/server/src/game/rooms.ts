@@ -1,6 +1,7 @@
 import {
   LOBBY,
   type Artwork,
+  type CharacterPlacement,
   type GameMode,
   type PlayerRole,
   type RoomSnapshot,
@@ -21,6 +22,8 @@ export interface ServerPlayer extends PublicPlayer {
   role: PlayerRole | null;
   /** true si trouvé par le chercheur sur la manche courante. */
   found: boolean;
+  /** Placement du personnage sur le tableau (null tant que non positionné). */
+  placement: CharacterPlacement | null;
 }
 
 export interface Room {

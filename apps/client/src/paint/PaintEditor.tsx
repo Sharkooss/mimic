@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CHARACTER_SIZE } from '@mimic/shared';
 import { loadCharacterBase } from './character.js';
+import { useCharacterStore } from '../store/characterStore.js';
 
 const S = CHARACTER_SIZE;
 const BRUSH_SIZES = [1, 2, 3, 5, 8] as const;
@@ -62,8 +63,18 @@ export function PaintEditor(): JSX.Element {
     ctx.putImageData(img, 0, 0);
   }, []);
 
-  // Chargement de la silhouette.
+  // Chargement de la silhouette (une fois si le store n'est pas déjà amorcé).
   useEffect(() => {
+    const store = useCharacterStore.getState();
+    if (store.pixels && store.mask) {
+      // Reprise d'un personnage déjà peint (retour depuis l'onglet Placer).
+      maskRef.current = store.mask;
+      pixelsRef.current = store.pixels;
+      if (!baseRef.current) baseRef.current = store.pixels.slice();
+      setReady(true);
+      redraw();
+      return;
+    }
     let alive = true;
     loadCharacterBase()
       .then(({ mask, pixels }) => {
@@ -71,6 +82,7 @@ export function PaintEditor(): JSX.Element {
         maskRef.current = mask;
         baseRef.current = pixels.slice();
         pixelsRef.current = pixels;
+        useCharacterStore.getState().setBase(mask, pixels);
         setReady(true);
         redraw();
       })
@@ -152,8 +164,11 @@ export function PaintEditor(): JSX.Element {
   };
 
   const endStroke = () => {
+    if (!paintingRef.current) return;
     paintingRef.current = false;
     lastRef.current = null;
+    // Notifie le plateau (onglet Placer) que les pixels ont changé.
+    useCharacterStore.getState().bump();
   };
 
   const undo = () => {
@@ -162,6 +177,7 @@ export function PaintEditor(): JSX.Element {
     if (!prev || !px) return;
     redoRef.current.push(px.slice());
     pixelsRef.current = prev;
+    useCharacterStore.getState().setPixels(prev);
     redraw();
     forceTick((n) => n + 1);
   };
@@ -172,6 +188,7 @@ export function PaintEditor(): JSX.Element {
     if (!next || !px) return;
     historyRef.current.push(px.slice());
     pixelsRef.current = next;
+    useCharacterStore.getState().setPixels(next);
     redraw();
     forceTick((n) => n + 1);
   };
@@ -180,7 +197,9 @@ export function PaintEditor(): JSX.Element {
     const base = baseRef.current;
     if (!base) return;
     snapshot();
-    pixelsRef.current = base.slice();
+    const fresh = base.slice();
+    pixelsRef.current = fresh;
+    useCharacterStore.getState().setPixels(fresh);
     redraw();
     forceTick((n) => n + 1);
   };

@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { RoomSnapshot } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
 import { useCountdown } from '../hooks/useCountdown.js';
 import { PaintEditor } from '../paint/PaintEditor.js';
+import { CamouflageStage } from '../paint/CamouflageStage.js';
 
 /**
  * Écran de partie (ossature — issue #7).
@@ -28,17 +29,7 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
               <ArtworkCard room={room} />
             </>
           ) : (
-            <>
-              <div>
-                <div className="font-semibold">Camoufle-toi !</div>
-                <p className="text-sm text-stone-500">
-                  Peins ton personnage pour le fondre dans l'œuvre. (Placement sur le tableau :
-                  issue #11.)
-                </p>
-              </div>
-              <PaintEditor />
-              <ArtworkCard room={room} />
-            </>
+            <HiderCamouflage room={room} />
           )}
         </PhaseCard>
       )}
@@ -89,6 +80,56 @@ function PhaseHeader({ room, remaining }: { room: RoomSnapshot; remaining: numbe
         </div>
       )}
     </div>
+  );
+}
+
+/** Camouflage côté caché : onglets Peindre / Placer (personnage partagé via le store). */
+function HiderCamouflage({ room }: { room: RoomSnapshot }) {
+  const [tab, setTab] = useState<'paint' | 'place'>('paint');
+  return (
+    <>
+      <div>
+        <div className="font-semibold">Camoufle-toi !</div>
+        <p className="text-sm text-stone-500">
+          Peins ton personnage, puis place-le sur le tableau pour le rendre invisible.
+        </p>
+      </div>
+      <div className="flex gap-1 rounded-lg bg-stone-100 p-1 text-sm font-medium">
+        <TabButton active={tab === 'paint'} onClick={() => setTab('paint')}>
+          🖌 Peindre
+        </TabButton>
+        <TabButton active={tab === 'place'} onClick={() => setTab('place')}>
+          🎯 Placer
+        </TabButton>
+      </div>
+      {tab === 'paint' ? (
+        <PaintEditor />
+      ) : room.artwork ? (
+        <CamouflageStage artwork={room.artwork} />
+      ) : null}
+      <ArtworkCard room={room} />
+    </>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 rounded-md px-3 py-1.5 transition ${
+        active ? 'bg-white shadow-sm' : 'text-stone-500 hover:text-stone-700'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 

@@ -4,6 +4,7 @@ import {
   EVENTS,
   createRoomSchema,
   joinRoomSchema,
+  placementSchema,
   type ClientToServerEvents,
   type ServerToClientEvents,
 } from '@mimic/shared';
@@ -87,6 +88,17 @@ export function setupSocket(
       ack({ ok: true });
     });
 
+    socket.on(EVENTS.characterMove, (payload) => {
+      const code = socket.data.roomCode;
+      const room = code ? getRoom(code) : undefined;
+      if (!room || room.phase !== 'camouflage') return;
+      const player = room.players.get(socket.id);
+      if (!player || player.role !== 'hider') return;
+      const parsed = placementSchema.safeParse(payload);
+      if (!parsed.success) return;
+      player.placement = { ...parsed.data, locked: false };
+    });
+
     socket.on(EVENTS.roomLeave, () => {
       leaveRoom(io, socket);
     });
@@ -111,6 +123,7 @@ function addPlayer(room: Room, socket: MimicSocket, isHost: boolean): void {
     score: 0,
     role: null,
     found: false,
+    placement: null,
   };
   room.players.set(player.id, player);
   if (isHost) room.hostId = player.id;

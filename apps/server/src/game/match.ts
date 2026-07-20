@@ -46,6 +46,7 @@ function beginRound(io: IO, room: Room): void {
 
   for (const p of room.players.values()) {
     p.found = false;
+    p.placement = null;
     p.role = p.id === room.seekerId ? 'seeker' : 'hider';
   }
 
