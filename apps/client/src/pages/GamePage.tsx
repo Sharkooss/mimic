@@ -24,7 +24,8 @@ import { ResultsStage } from '../paint/ResultsStage.js';
 export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
   const remaining = useCountdown(room.phaseEndsAt);
   const results = useGameStore((s) => s.results);
-  const isSeeker = room.seekerId === socket.id;
+  const myId = useGameStore((s) => s.playerId);
+  const isSeeker = room.seekerId === myId;
   const totalHiders = Math.max(0, room.players.length - 1);
 
   return (
@@ -330,6 +331,7 @@ function Scoreboard({
       .map((p) => ({ playerId: p.id, pseudo: p.pseudo, roundPoints: 0, totalScore: p.score }))
       .sort((a, b) => b.totalScore - a.totalScore);
   const revealById = new Map((reveals ?? []).map((r) => [r.playerId, r]));
+  const myId = useGameStore.getState().playerId;
 
   return (
     <ol className="space-y-2">
@@ -345,9 +347,7 @@ function Scoreboard({
               <span className="w-5 text-center font-mono text-stone-400">{i + 1}</span>
               <span className="font-medium">
                 {r.pseudo}
-                {r.playerId === socket.id && (
-                  <span className="ml-2 text-xs text-accent">(toi)</span>
-                )}
+                {r.playerId === myId && <span className="ml-2 text-xs text-accent">(toi)</span>}
               </span>
               {isSeeker ? (
                 <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700">

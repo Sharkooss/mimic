@@ -11,14 +11,15 @@ const { io } = createRequire(clientPkg)('socket.io-client');
 const S = 64;
 const URL_ = `http://localhost:${process.env.PORT ?? 3000}`;
 const sock = io(URL_, { transports: ['websocket'], forceNew: true });
+sock.on('session', (d) => (sock.pid = d.playerId));
 const emit = (ev, p) => new Promise((r) => (p === undefined ? sock.emit(ev, r) : sock.emit(ev, p, r)));
 
 let started = false;
 let locked = false;
 
 sock.on('room:snapshot', async (snap) => {
-  const me = snap.players.find((p) => p.id === sock.id);
-  const role = snap.seekerId ? (snap.seekerId === sock.id ? 'CHERCHEUR' : 'caché') : '—';
+  const me = snap.players.find((p) => p.id === sock.pid);
+  const role = snap.seekerId ? (snap.seekerId === sock.pid ? 'CHERCHEUR' : 'caché') : '—';
   console.log(`[snap] phase=${snap.phase} joueurs=${snap.players.length} monRole=${role}`);
 
   if (snap.phase === 'lobby' && snap.players.length >= 2 && me?.isHost && !started) {
@@ -27,7 +28,7 @@ sock.on('room:snapshot', async (snap) => {
     console.log('[start]', res.ok ? 'OK' : res.error);
   }
 
-  if (snap.phase === 'camouflage' && snap.seekerId && snap.seekerId !== sock.id && !locked) {
+  if (snap.phase === 'camouflage' && snap.seekerId && snap.seekerId !== sock.pid && !locked) {
     locked = true;
     const art = snap.artwork;
     const x = Math.round((art.width - S) / 2);

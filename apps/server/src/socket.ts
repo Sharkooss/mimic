@@ -20,16 +20,22 @@ import {
   clearRoomTimer,
   createRoom,
   deleteRoom,
+  findByToken,
   getRoom,
+  newPlayerId,
   snapshot,
   type Room,
   type ServerPlayer,
 } from './game/rooms.js';
 import { maybeEndSeeking, startMatch } from './game/match.js';
 
+/** Délai de grâce (ms) avant de retirer un joueur déconnecté (fenêtre de reconnexion). */
+const RECONNECT_GRACE_MS = 30_000;
+
 interface SocketData {
   roomCode: string | null;
   playerId: string;
+  token: string;
 }
 
 type MimicSocket = Socket<
@@ -57,8 +63,16 @@ export function setupSocket(
   });
 
   io.on('connection', (socket: MimicSocket) => {
+    const token = String(socket.handshake.auth?.token ?? '') || socket.id;
     socket.data.roomCode = null;
+    socket.data.token = token;
     socket.data.playerId = socket.id;
+
+    // Reconnexion : si ce token correspond à un joueur d'un salon, on le réattache.
+    const existing = findByToken(token);
+    if (existing) {
+      reattach(io, socket, existing.room, existing.player);
+    }
 
     socket.on(EVENTS.roomCreate, (payload, ack) => {
       const parsed = createRoomSchema.safeParse(payload);
@@ -74,6 +88,14 @@ export function setupSocket(
       const parsed = joinRoomSchema.safeParse(payload);
       if (!parsed.success) return ack({ ok: false, error: 'Code invalide.' });
 
+      // Déjà rattaché à un joueur (reconnexion / rechargement) : on resynchronise
+      // au lieu de créer un doublon.
+      const existing = findByToken(socket.data.token);
+      if (existing) {
+        reattach(io, socket, existing.room, existing.player);
+        return ack({ ok: true, code: existing.room.code });
+      }
+
       const room = getRoom(parsed.data.code);
       if (!room) return ack({ ok: false, error: 'Salon introuvable.' });
       if (room.phase !== 'lobby') return ack({ ok: false, error: 'La partie a déjà commencé.' });
@@ -87,7 +109,7 @@ export function setupSocket(
       const code = socket.data.roomCode;
       const room = code ? getRoom(code) : undefined;
       if (!room) return ack({ ok: false, error: 'Salon introuvable.' });
-      if (room.hostId !== socket.id) {
+      if (room.hostId !== socket.data.playerId) {
         return ack({ ok: false, error: "Seul l'hôte peut lancer la partie." });
       }
       const res = startMatch(io, room);
@@ -99,7 +121,7 @@ export function setupSocket(
       const code = socket.data.roomCode;
       const room = code ? getRoom(code) : undefined;
       if (!room || room.phase !== 'camouflage') return;
-      const player = room.players.get(socket.id);
+      const player = room.players.get(socket.data.playerId);
       if (!player || player.role !== 'hider' || player.placement?.locked) return;
       const parsed = placementSchema.safeParse(payload);
       if (!parsed.success) return;
@@ -112,7 +134,7 @@ export function setupSocket(
       if (!room || room.phase !== 'camouflage') {
         return ack({ ok: false, error: "Ce n'est pas le moment de verrouiller." });
       }
-      const player = room.players.get(socket.id);
+      const player = room.players.get(socket.data.playerId);
       if (!player || player.role !== 'hider') {
         return ack({ ok: false, error: 'Action réservée aux joueurs cachés.' });
       }
@@ -139,7 +161,7 @@ export function setupSocket(
       if (!room || room.phase !== 'seeking') {
         return ack({ ok: false, error: "Ce n'est pas le moment de chercher." });
       }
-      const seeker = room.players.get(socket.id);
+      const seeker = room.players.get(socket.data.playerId);
       if (!seeker || seeker.role !== 'seeker') {
         return ack({ ok: false, error: 'Action réservée au chercheur.' });
       }
@@ -188,11 +210,25 @@ export function setupSocket(
     });
 
     socket.on(EVENTS.roomLeave, () => {
-      leaveRoom(io, socket);
+      const room = socket.data.roomCode ? getRoom(socket.data.roomCode) : undefined;
+      const player = room?.players.get(socket.data.playerId);
+      socket.data.roomCode = null;
+      if (room && player) {
+        socket.leave(room.code);
+        removePlayer(io, room, player);
+      }
     });
 
+    // Déconnexion : on garde le joueur en « grâce » pour permettre la reconnexion.
     socket.on('disconnect', () => {
-      leaveRoom(io, socket);
+      const room = socket.data.roomCode ? getRoom(socket.data.roomCode) : undefined;
+      const player = room?.players.get(socket.data.playerId);
+      // Ignore si un socket plus récent a déjà repris ce joueur (reconnexion).
+      if (!room || !player || player.socketId !== socket.id) return;
+      player.connected = false;
+      player.socketId = null;
+      broadcastSnapshot(io, room);
+      player.removeTimer = setTimeout(() => removePlayer(io, room, player), RECONNECT_GRACE_MS);
     });
   });
 
@@ -200,11 +236,14 @@ export function setupSocket(
 }
 
 function addPlayer(room: Room, socket: MimicSocket, isHost: boolean): void {
+  const id = newPlayerId();
   const player: ServerPlayer = {
-    id: socket.id,
+    id,
     socketId: socket.id,
+    token: socket.data.token,
+    removeTimer: null,
     userId: null,
-    pseudo: `Joueur-${socket.id.slice(0, 4)}`,
+    pseudo: `Joueur-${id.slice(2, 6)}`,
     level: 1,
     connected: true,
     isHost,
@@ -220,32 +259,56 @@ function addPlayer(room: Room, socket: MimicSocket, isHost: boolean): void {
   room.players.set(player.id, player);
   if (isHost) room.hostId = player.id;
   socket.data.roomCode = room.code;
+  socket.data.playerId = player.id;
   socket.join(room.code);
+  socket.emit(EVENTS.session, { playerId: player.id });
 }
 
-function leaveRoom(
+/** Réattache un socket (re)connecté à un joueur existant et resynchronise son état. */
+function reattach(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
   socket: MimicSocket,
+  room: Room,
+  player: ServerPlayer,
 ): void {
-  const code = socket.data.roomCode;
-  if (!code) return;
-  const room = getRoom(code);
-  socket.data.roomCode = null;
-  if (!room) return;
+  if (player.removeTimer) {
+    clearTimeout(player.removeTimer);
+    player.removeTimer = null;
+  }
+  player.socketId = socket.id;
+  player.connected = true;
+  socket.data.roomCode = room.code;
+  socket.data.playerId = player.id;
+  socket.join(room.code);
+  socket.emit(EVENTS.session, { playerId: player.id });
+  socket.emit(EVENTS.roomSnapshot, snapshot(room));
+  broadcastSnapshot(io, room);
+}
 
-  room.players.delete(socket.id);
-  socket.leave(code);
+/** Retire définitivement un joueur (départ explicite ou grâce expirée). */
+function removePlayer(
+  io: Server<ClientToServerEvents, ServerToClientEvents>,
+  room: Room,
+  player: ServerPlayer,
+): void {
+  if (player.removeTimer) {
+    clearTimeout(player.removeTimer);
+    player.removeTimer = null;
+  }
+  room.players.delete(player.id);
 
   // Salon vidé : on arrête les timers et on supprime.
   if (room.players.size === 0) {
     clearRoomTimer(room);
-    deleteRoom(code);
+    deleteRoom(room.code);
     return;
   }
 
-  // Réassigne l'hôte si besoin.
-  if (room.hostId === socket.id) {
-    const next = room.players.values().next().value as ServerPlayer | undefined;
+  // Réassigne l'hôte à un joueur encore présent si besoin.
+  if (room.hostId === player.id) {
+    const next =
+      [...room.players.values()].find((p) => p.connected) ??
+      (room.players.values().next().value as ServerPlayer | undefined);
     room.hostId = next?.id ?? null;
     if (next) next.isHost = true;
   }

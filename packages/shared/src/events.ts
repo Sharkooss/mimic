@@ -81,6 +81,8 @@ export interface PlayerFoundReveal {
 
 /** Événements émis par le serveur vers le client. */
 export interface ServerToClientEvents {
+  /** Id public du joueur pour ce socket (à la connexion/reconnexion). */
+  session: (data: { playerId: string }) => void;
   'room:snapshot': (snapshot: RoomSnapshot) => void;
   'phase:changed': (phase: RoomSnapshot['phase'], phaseEndsAt: number | null) => void;
   'player:found': (data: PlayerFoundReveal) => void;
@@ -117,6 +119,7 @@ export const EVENTS = {
   roomJoin: 'room:join',
   roomLeave: 'room:leave',
   roomStart: 'room:start',
+  session: 'session',
   roomSnapshot: 'room:snapshot',
   characterMove: 'character:move',
   characterLock: 'character:lock',

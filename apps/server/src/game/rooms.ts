@@ -15,7 +15,12 @@ import {
  */
 
 export interface ServerPlayer extends PublicPlayer {
-  socketId: string;
+  /** Socket courant (null si déconnecté en attente de reconnexion). */
+  socketId: string | null;
+  /** Secret de reconnexion (jamais diffusé). Le socket s'y authentifie. */
+  token: string;
+  /** Timer de suppression après déconnexion (grâce de reconnexion). */
+  removeTimer: ReturnType<typeof setTimeout> | null;
   /** Id du compte si authentifié, sinon null (invité). */
   userId: string | null;
   /** Rôle sur la manche courante (null en lobby). */
@@ -95,6 +100,21 @@ export function createRoom(mode: GameMode): Room {
 
 export function getRoom(code: string): Room | undefined {
   return rooms.get(code);
+}
+
+/** Id public d'un joueur (exposé dans les snapshots), distinct du token de reconnexion. */
+export function newPlayerId(): string {
+  return 'p_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
+/** Retrouve un joueur (et son salon) par son token de reconnexion. */
+export function findByToken(token: string): { room: Room; player: ServerPlayer } | undefined {
+  for (const room of rooms.values()) {
+    for (const player of room.players.values()) {
+      if (player.token === token) return { room, player };
+    }
+  }
+  return undefined;
 }
 
 export function deleteRoom(code: string): void {

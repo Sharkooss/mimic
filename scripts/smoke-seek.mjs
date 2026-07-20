@@ -25,7 +25,9 @@ const fail = (m) => {
   process.exit(1);
 };
 const ok = (m) => console.log('✓', m);
-const sockById = (id) => (a.id === id ? a : b.id === id ? b : null);
+a.on('session', (d) => (a.pid = d.playerId));
+b.on('session', (d) => (b.pid = d.playerId));
+const sockById = (id) => (a.pid === id ? a : b.pid === id ? b : null);
 
 let placement = null;
 let hiderId = null;
@@ -46,7 +48,7 @@ async function onCamouflage(snap) {
   didLock = true;
   seekerSock = sockById(snap.seekerId);
   const hiderSock = seekerSock === a ? b : a;
-  hiderId = hiderSock.id;
+  hiderId = hiderSock.pid;
   const art = snap.artwork;
   const x = Math.round((art.width - S) / 2);
   const y = Math.round((art.height - S) / 2);

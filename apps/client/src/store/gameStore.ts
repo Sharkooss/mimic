@@ -3,10 +3,13 @@ import type { RoomSnapshot, RoundResults } from '@mimic/shared';
 
 interface GameState {
   connected: boolean;
+  /** Id public de ce joueur (reçu du serveur via l'événement `session`). */
+  playerId: string | null;
   room: RoomSnapshot | null;
   results: RoundResults | null;
   toast: string | null;
   setConnected: (v: boolean) => void;
+  setPlayerId: (id: string) => void;
   setRoom: (room: RoomSnapshot | null) => void;
   setResults: (r: RoundResults | null) => void;
   setToast: (msg: string | null) => void;
@@ -15,10 +18,12 @@ interface GameState {
 /** État global minimal côté client (étendu au fil des phases de jeu). */
 export const useGameStore = create<GameState>((set) => ({
   connected: false,
+  playerId: null,
   room: null,
   results: null,
   toast: null,
   setConnected: (connected) => set({ connected }),
+  setPlayerId: (playerId) => set({ playerId }),
   setRoom: (room) => set({ room }),
   setResults: (results) => set({ results }),
   setToast: (toast) => set({ toast }),

@@ -22,10 +22,13 @@ const fail = (m) => {
   process.exit(1);
 };
 
+host.on('session', (d) => (host.pid = d.playerId));
+guest.on('session', (d) => (guest.pid = d.playerId));
+
 let locked = false;
 const onSnap = (sock) => (snap) => {
   if (snap.phase !== 'camouflage' || locked) return;
-  if (snap.seekerId === sock.id) return; // ce client est le chercheur
+  if (snap.seekerId === sock.pid) return; // ce client est le chercheur
   locked = true;
   const art = snap.artwork;
   const x = Math.round((art.width - S) / 2);

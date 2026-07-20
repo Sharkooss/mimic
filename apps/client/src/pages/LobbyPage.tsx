@@ -10,6 +10,7 @@ export function LobbyPage(): JSX.Element {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const room = useGameStore((s) => s.room);
+  const myId = useGameStore((s) => s.playerId);
 
   // Si on arrive directement sur l'URL sans être dans le salon, on tente de rejoindre.
   useEffect(() => {
@@ -29,7 +30,7 @@ export function LobbyPage(): JSX.Element {
     return <GamePage room={room} />;
   }
 
-  const me = room.players.find((p) => p.id === socket.id);
+  const me = room.players.find((p) => p.id === myId);
 
   return (
     <div className="space-y-8">
@@ -53,7 +54,7 @@ export function LobbyPage(): JSX.Element {
             >
               <span className="font-medium">
                 {p.pseudo}
-                {p.id === socket.id && <span className="ml-2 text-xs text-accent">(toi)</span>}
+                {p.id === myId && <span className="ml-2 text-xs text-accent">(toi)</span>}
               </span>
               {p.isHost && <span className="text-xs text-stone-400">hôte</span>}
             </li>
