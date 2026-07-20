@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CHARACTER_ROTATIONS, CHARACTER_SIZE, GAME_MODES, LOBBY } from './constants.js';
+import type { CharacterRotation } from './constants.js';
 import type { CamouflageBreakdown, CharacterPlacement, RoomSnapshot } from './types.js';
 
 /* -------------------------------------------------------------------------- */
@@ -91,9 +92,23 @@ export interface ServerToClientEvents {
 export type AckResult<T = undefined> =
   ({ ok: true } & (T extends undefined ? unknown : T)) | { ok: false; error: string };
 
+/** Révélation d'un caché en fin de manche (position + apparence, pour l'écran de résultats). */
+export interface RoundReveal {
+  playerId: string;
+  pseudo: string;
+  x: number;
+  y: number;
+  rotation: CharacterRotation;
+  pixels: number[];
+  found: boolean;
+  camouflageScore: number | null;
+}
+
 export interface RoundResults {
   round: number;
   scores: Array<{ playerId: string; pseudo: string; roundPoints: number; totalScore: number }>;
+  /** Positions révélées de tous les cachés en jeu (diffusées à tous en fin de manche). */
+  reveals: RoundReveal[];
 }
 
 /** Noms d'événements en constantes (évite les fautes de frappe). */

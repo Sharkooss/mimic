@@ -37,6 +37,9 @@ let done = false;
 
 a.on('player:found', (d) => (foundEvent = d));
 b.on('player:found', (d) => (foundEvent = d));
+let roundResults = null;
+a.on('round:results', (d) => (roundResults = d));
+b.on('round:results', (d) => (roundResults = d));
 
 async function onCamouflage(snap) {
   if (didLock) return;
@@ -85,6 +88,15 @@ function onResults() {
   if (!Array.isArray(foundEvent.pixels) || foundEvent.pixels.length !== S * S * 4)
     fail('reveal: pixels incorrects');
   ok('player:found diffusé avec placement + pixels');
+
+  if (!roundResults) fail('aucun round:results reçu');
+  const rev = (roundResults.reveals ?? []).find((r) => r.playerId === hiderId);
+  if (!rev) fail('reveal du caché absent de round:results');
+  if (rev.found !== true) fail('reveal: found devrait être true');
+  if (rev.placement && rev.x == null) fail('reveal: position manquante');
+  if (!Array.isArray(rev.pixels) || rev.pixels.length !== S * S * 4) fail('reveal: pixels incorrects');
+  if (typeof rev.camouflageScore !== 'number') fail('reveal: score camouflage manquant');
+  ok(`round:results révèle le caché (found, pos, pixels, camo=${rev.camouflageScore}%)`);
   ok('tous trouvés → recherche terminée en avance (results)');
   a.close();
   b.close();

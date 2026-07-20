@@ -143,13 +143,32 @@ function awardRoundPoints(room: Room): RoundResults {
       );
       pts += survived * SCORING.hiddenSurvivalPoints;
       if (!p.found) pts += SCORING.hiddenNeverFoundBonus;
+      // Bonus proportionnel à la qualité du camouflage (récompense l'effort de peinture).
+      pts += Math.round(((p.camouflageScore ?? 0) / 100) * SCORING.hiddenCamouflageBonusMax);
     }
     p.score += pts;
     scores.push({ playerId: p.id, pseudo: p.pseudo, roundPoints: pts, totalScore: p.score });
   }
 
   scores.sort((a, b) => b.totalScore - a.totalScore);
-  return { round: room.round, scores };
+
+  // Révélation de tous les cachés en jeu (verrouillés) pour l'écran de résultats.
+  const reveals: RoundResults['reveals'] = [];
+  for (const p of room.players.values()) {
+    if (p.role !== 'hider' || !p.placement?.locked || !p.pixels) continue;
+    reveals.push({
+      playerId: p.id,
+      pseudo: p.pseudo,
+      x: p.placement.x,
+      y: p.placement.y,
+      rotation: p.placement.rotation,
+      pixels: Array.from(p.pixels),
+      found: p.found,
+      camouflageScore: p.camouflageScore,
+    });
+  }
+
+  return { round: room.round, scores, reveals };
 }
 
 function broadcast(io: IO, room: Room): void {

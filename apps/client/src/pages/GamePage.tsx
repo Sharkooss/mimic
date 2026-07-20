@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { EVENTS, type CamouflageBreakdown, type RoomSnapshot } from '@mimic/shared';
+import {
+  EVENTS,
+  type CamouflageBreakdown,
+  type RoomSnapshot,
+  type RoundReveal,
+} from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
 import { useCharacterStore } from '../store/characterStore.js';
@@ -8,6 +13,7 @@ import { loadCharacterBase } from '../paint/character.js';
 import { CamouflageStage } from '../paint/CamouflageStage.js';
 import { BoardPaintStage } from '../paint/BoardPaintStage.js';
 import { SeekerStage } from '../paint/SeekerStage.js';
+import { ResultsStage } from '../paint/ResultsStage.js';
 
 /**
  * Écran de partie (ossature — issue #7).
@@ -68,7 +74,14 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
           <h2 className="text-lg font-semibold">
             {room.phase === 'finished' ? '🏆 Classement final' : 'Résultats de la manche'}
           </h2>
-          <Scoreboard room={room} roundScores={results?.scores} />
+          {room.phase === 'results' && room.artwork && results?.reveals?.length ? (
+            <ResultsStage artwork={room.artwork} reveals={results.reveals} />
+          ) : null}
+          <Scoreboard
+            room={room}
+            roundScores={results?.scores}
+            reveals={room.phase === 'results' ? results?.reveals : undefined}
+          />
         </PhaseCard>
       )}
     </div>
@@ -300,6 +313,7 @@ function ArtworkCard({ room }: { room: RoomSnapshot }) {
 function Scoreboard({
   room,
   roundScores,
+  reveals,
 }: {
   room: RoomSnapshot;
   roundScores?: Array<{
@@ -308,33 +322,55 @@ function Scoreboard({
     roundPoints: number;
     totalScore: number;
   }>;
+  reveals?: RoundReveal[];
 }) {
   const rows =
     roundScores ??
     [...room.players]
       .map((p) => ({ playerId: p.id, pseudo: p.pseudo, roundPoints: 0, totalScore: p.score }))
       .sort((a, b) => b.totalScore - a.totalScore);
+  const revealById = new Map((reveals ?? []).map((r) => [r.playerId, r]));
 
   return (
     <ol className="space-y-2">
-      {rows.map((r, i) => (
-        <li
-          key={r.playerId}
-          className="flex items-center justify-between rounded-lg border border-stone-100 px-4 py-2"
-        >
-          <span className="flex items-center gap-3">
-            <span className="w-5 text-center font-mono text-stone-400">{i + 1}</span>
-            <span className="font-medium">
-              {r.pseudo}
-              {r.playerId === socket.id && <span className="ml-2 text-xs text-accent">(toi)</span>}
+      {rows.map((r, i) => {
+        const rev = revealById.get(r.playerId);
+        const isSeeker = r.playerId === room.seekerId;
+        return (
+          <li
+            key={r.playerId}
+            className="flex items-center justify-between rounded-lg border border-stone-100 px-4 py-2"
+          >
+            <span className="flex items-center gap-3">
+              <span className="w-5 text-center font-mono text-stone-400">{i + 1}</span>
+              <span className="font-medium">
+                {r.pseudo}
+                {r.playerId === socket.id && (
+                  <span className="ml-2 text-xs text-accent">(toi)</span>
+                )}
+              </span>
+              {isSeeker ? (
+                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700">
+                  🔍 chercheur
+                </span>
+              ) : rev ? (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs ${
+                    rev.found ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                  }`}
+                >
+                  {rev.found ? 'trouvé' : 'échappé'}
+                  {rev.camouflageScore != null ? ` · 🎨 ${rev.camouflageScore}%` : ''}
+                </span>
+              ) : null}
             </span>
-          </span>
-          <span className="flex items-center gap-3 font-mono">
-            {r.roundPoints > 0 && <span className="text-emerald-600">+{r.roundPoints}</span>}
-            <span className="font-semibold">{r.totalScore}</span>
-          </span>
-        </li>
-      ))}
+            <span className="flex items-center gap-3 font-mono">
+              {r.roundPoints > 0 && <span className="text-emerald-600">+{r.roundPoints}</span>}
+              <span className="font-semibold">{r.totalScore}</span>
+            </span>
+          </li>
+        );
+      })}
     </ol>
   );
 }

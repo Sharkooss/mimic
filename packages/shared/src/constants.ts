@@ -34,6 +34,8 @@ export const SCORING = {
   hiddenSurvivalIntervalSec: 10,
   /** Caché : bonus si jamais trouvé. */
   hiddenNeverFoundBonus: 50,
+  /** Caché : bonus de points proportionnel à la qualité du camouflage (score 0-100 → 0-max). */
+  hiddenCamouflageBonusMax: 30,
   /** Seuil de camouflage (%) donnant un bonus XP. */
   camouflageBonusThreshold: 95,
   camouflageBonusXp: 40,
