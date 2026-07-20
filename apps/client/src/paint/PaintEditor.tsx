@@ -25,9 +25,20 @@ const PALETTE = [
 ];
 const MAX_HISTORY = 60;
 
+type Tool = 'brush' | 'bucket' | 'pipette';
+const TOOLS: { id: Tool; label: string; icon: string }[] = [
+  { id: 'brush', label: 'Pinceau', icon: '🖌' },
+  { id: 'bucket', label: 'Pot', icon: '🪣' },
+  { id: 'pipette', label: 'Pipette', icon: '💧' },
+];
+
 function hexToRgb(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
 /**
@@ -46,10 +57,12 @@ export function PaintEditor(): JSX.Element {
   const lastRef = useRef<{ x: number; y: number } | null>(null);
   const colorRef = useRef('#1c1917');
   const brushRef = useRef<number>(3);
+  const toolRef = useRef<Tool>('brush');
 
   const [ready, setReady] = useState(false);
   const [color, setColor] = useState('#1c1917');
   const [brush, setBrush] = useState(3);
+  const [tool, setTool] = useState<Tool>('brush');
   const [, forceTick] = useState(0);
 
   const redraw = useCallback(() => {
@@ -122,6 +135,61 @@ export function PaintEditor(): JSX.Element {
     }
   }, []);
 
+  // Remplissage par diffusion (pot de peinture) : recolore la zone contiguë de même
+  // couleur autour du pixel cliqué, bornée à la silhouette (masque).
+  const floodFill = useCallback((cx: number, cy: number) => {
+    const px = pixelsRef.current;
+    const mask = maskRef.current;
+    if (!px || !mask) return;
+    const start = cy * S + cx;
+    if (mask[start] === 0) return;
+    const [nr, ng, nb] = hexToRgb(colorRef.current);
+    const o = start * 4;
+    const tr = px[o]!;
+    const tg = px[o + 1]!;
+    const tb = px[o + 2]!;
+    const ta = px[o + 3]!;
+    // Déjà de la bonne couleur opaque → rien à faire.
+    if (tr === nr && tg === ng && tb === nb && ta === 255) return;
+    const seen = new Uint8Array(S * S);
+    const stack = [start];
+    seen[start] = 1;
+    const enqueue = (idx: number) => {
+      if (!seen[idx] && mask[idx] !== 0) {
+        seen[idx] = 1;
+        stack.push(idx);
+      }
+    };
+    while (stack.length) {
+      const idx = stack.pop()!;
+      const p = idx * 4;
+      if (px[p] !== tr || px[p + 1] !== tg || px[p + 2] !== tb || px[p + 3] !== ta) continue;
+      px[p] = nr;
+      px[p + 1] = ng;
+      px[p + 2] = nb;
+      px[p + 3] = 255;
+      const x = idx % S;
+      const y = (idx / S) | 0;
+      if (x > 0) enqueue(idx - 1);
+      if (x < S - 1) enqueue(idx + 1);
+      if (y > 0) enqueue(idx - S);
+      if (y < S - 1) enqueue(idx + S);
+    }
+  }, []);
+
+  // Pipette : adopte la couleur du pixel cliqué (ignore le transparent).
+  const pickAt = useCallback((cx: number, cy: number) => {
+    const px = pixelsRef.current;
+    if (!px) return;
+    const o = (cy * S + cx) * 4;
+    if (px[o + 3] === 0) return;
+    const hex = rgbToHex(px[o]!, px[o + 1]!, px[o + 2]!);
+    setColor(hex);
+    colorRef.current = hex;
+    setTool('brush');
+    toolRef.current = 'brush';
+  }, []);
+
   // Trace une ligne entre deux points pour éviter les trous en mouvement rapide.
   const paintLine = useCallback(
     (x0: number, y0: number, x1: number, y1: number) => {
@@ -144,10 +212,24 @@ export function PaintEditor(): JSX.Element {
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!ready || useCharacterStore.getState().locked) return;
+    const p = eventToPixel(e);
+
+    if (toolRef.current === 'pipette') {
+      pickAt(p.x, p.y);
+      return;
+    }
+    if (toolRef.current === 'bucket') {
+      snapshot();
+      floodFill(p.x, p.y);
+      redraw();
+      forceTick((n) => n + 1);
+      useCharacterStore.getState().bump();
+      return;
+    }
+
     e.currentTarget.setPointerCapture(e.pointerId);
     snapshot();
     paintingRef.current = true;
-    const p = eventToPixel(e);
     lastRef.current = p;
     paintAt(p.x, p.y);
     redraw();
@@ -212,6 +294,12 @@ export function PaintEditor(): JSX.Element {
     setBrush(b);
     brushRef.current = b;
   };
+  const pickTool = (t: Tool) => {
+    setTool(t);
+    toolRef.current = t;
+  };
+
+  const cursor = !ready ? 'wait' : tool === 'pipette' ? 'copy' : 'crosshair';
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row">
@@ -235,13 +323,35 @@ export function PaintEditor(): JSX.Element {
             width: 320,
             height: 320,
             imageRendering: 'pixelated',
-            cursor: ready ? 'crosshair' : 'wait',
+            cursor,
           }}
         />
       </div>
 
       {/* Barre d'outils */}
       <div className="flex-1 space-y-4">
+        <div>
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+            Outil
+          </div>
+          <div className="flex gap-1.5">
+            {TOOLS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => pickTool(t.id)}
+                className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition ${
+                  tool === t.id
+                    ? 'border-accent bg-accent text-white'
+                    : 'border-stone-200 hover:border-stone-300'
+                }`}
+              >
+                <span aria-hidden>{t.icon}</span>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
             Couleur
