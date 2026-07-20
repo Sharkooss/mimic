@@ -3,6 +3,7 @@ import type { RoomSnapshot } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
 import { useCountdown } from '../hooks/useCountdown.js';
+import { PaintEditor } from '../paint/PaintEditor.js';
 
 /**
  * Écran de partie (ossature — issue #7).
@@ -22,11 +23,23 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
       {room.phase === 'camouflage' && (
         <PhaseCard>
           {isSeeker ? (
-            <Waiting text="Tu es le chercheur. Observe l'œuvre… la traque commence bientôt." />
+            <>
+              <Waiting text="Tu es le chercheur. Observe l'œuvre… la traque commence bientôt." />
+              <ArtworkCard room={room} />
+            </>
           ) : (
-            <Waiting text="Camoufle-toi ! (éditeur de peinture — issue #8)" />
+            <>
+              <div>
+                <div className="font-semibold">Camoufle-toi !</div>
+                <p className="text-sm text-stone-500">
+                  Peins ton personnage pour le fondre dans l'œuvre. (Placement sur le tableau :
+                  issue #11.)
+                </p>
+              </div>
+              <PaintEditor />
+              <ArtworkCard room={room} />
+            </>
           )}
-          <ArtworkCard room={room} />
         </PhaseCard>
       )}
 

@@ -3,6 +3,7 @@ import { useSocket } from './hooks/useSocket.js';
 import { useGameStore } from './store/gameStore.js';
 import { HomePage } from './pages/HomePage.js';
 import { LobbyPage } from './pages/LobbyPage.js';
+import { PaintPage } from './pages/PaintPage.js';
 
 export default function App(): JSX.Element {
   useSocket();
@@ -27,6 +28,7 @@ export default function App(): JSX.Element {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/room/:code" element={<LobbyPage />} />
+          <Route path="/paint" element={<PaintPage />} />
         </Routes>
       </main>
     </div>
