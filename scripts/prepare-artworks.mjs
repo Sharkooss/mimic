@@ -37,6 +37,38 @@ const ARTISTS = [
   'Gustave Courbet',
   'J. M. W. Turner',
   'Eugène Delacroix',
+  'Camille Corot',
+  'Jean-François Millet',
+  'Alfred Sisley',
+  'Berthe Morisot',
+  'Mary Cassatt',
+  'Henri de Toulouse-Lautrec',
+  'Henri Rousseau',
+  'James McNeill Whistler',
+  'El Greco',
+  'Francisco Goya',
+  'Diego Velázquez',
+  'Titian',
+  'Nicolas Poussin',
+  'Jean Honoré Fragonard',
+  'Jacques Louis David',
+  'Peter Paul Rubens',
+  'Anthony van Dyck',
+  'Frans Hals',
+  'Sandro Botticelli',
+  'Albrecht Dürer',
+  'Hans Holbein the Younger',
+  'Georges de La Tour',
+  'Thomas Gainsborough',
+  'John Constable',
+  'Jean-Baptiste-Siméon Chardin',
+  'Gustave Caillebotte',
+  'Paul Signac',
+  'Jean-Léon Gérôme',
+  'William-Adolphe Bouguereau',
+  'Rosa Bonheur',
+  'Théodore Rousseau',
+  'Nicolas Lancret',
 ];
 
 const slugify = (s) =>
@@ -133,6 +165,7 @@ async function main() {
   const usedSlugs = new Set();
 
   for (const artist of ARTISTS) {
+    await new Promise((r) => setTimeout(r, 400)); // politesse : évite le rate-limit du Met
     process.stdout.write(`• ${artist} … `);
     let obj;
     try {
