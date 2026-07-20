@@ -24,13 +24,20 @@ export function loadCharacterBase(): Promise<CharacterBase> {
       off.height = S;
       const ctx = off.getContext('2d');
       if (!ctx) return reject(new Error('canvas 2d indisponible'));
-      ctx.drawImage(img, 0, 0, S, S);
+      // Ajuste la silhouette dans le carré S×S en préservant ses proportions (centrée).
+      const scale = Math.min(S / img.width, S / img.height);
+      const dw = img.width * scale;
+      const dh = img.height * scale;
+      ctx.clearRect(0, 0, S, S);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(img, (S - dw) / 2, (S - dh) / 2, dw, dh);
       const src = ctx.getImageData(0, 0, S, S).data;
 
       const mask = new Uint8ClampedArray(S * S);
       const pixels = new Uint8ClampedArray(S * S * 4);
       for (let i = 0; i < S * S; i++) {
-        const opaque = src[i * 4 + 3]! > 0;
+        // Seuil à 50 % pour une silhouette nette (bords anti-aliasés).
+        const opaque = src[i * 4 + 3]! >= 128;
         mask[i] = opaque ? 255 : 0;
         if (opaque) {
           pixels[i * 4] = 255;
