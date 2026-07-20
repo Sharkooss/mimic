@@ -7,6 +7,7 @@ import { useGameStore } from '../store/gameStore.js';
 export function useSocket(): void {
   const setConnected = useGameStore((s) => s.setConnected);
   const setRoom = useGameStore((s) => s.setRoom);
+  const setResults = useGameStore((s) => s.setResults);
   const setToast = useGameStore((s) => s.setToast);
 
   useEffect(() => {
@@ -18,14 +19,16 @@ export function useSocket(): void {
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on(EVENTS.roomSnapshot, setRoom);
+    socket.on(EVENTS.roundResults, setResults);
     socket.on(EVENTS.errorToast, setToast);
 
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off(EVENTS.roomSnapshot, setRoom);
+      socket.off(EVENTS.roundResults, setResults);
       socket.off(EVENTS.errorToast, setToast);
       socket.disconnect();
     };
-  }, [setConnected, setRoom, setToast]);
+  }, [setConnected, setRoom, setResults, setToast]);
 }

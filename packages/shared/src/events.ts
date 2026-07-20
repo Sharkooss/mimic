@@ -78,7 +78,7 @@ export interface ServerToClientEvents {
 
 /** Résultat générique d'un ack. */
 export type AckResult<T = undefined> =
-  ({ ok: true } & (T extends undefined ? Record<string, never> : T)) | { ok: false; error: string };
+  ({ ok: true } & (T extends undefined ? unknown : T)) | { ok: false; error: string };
 
 export interface RoundResults {
   round: number;

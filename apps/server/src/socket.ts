@@ -8,7 +8,16 @@ import {
   type ServerToClientEvents,
 } from '@mimic/shared';
 import { env } from './env.js';
-import { createRoom, getRoom, snapshot, type Room, type ServerPlayer } from './game/rooms.js';
+import {
+  clearRoomTimer,
+  createRoom,
+  deleteRoom,
+  getRoom,
+  snapshot,
+  type Room,
+  type ServerPlayer,
+} from './game/rooms.js';
+import { startMatch } from './game/match.js';
 
 interface SocketData {
   roomCode: string | null;
@@ -66,6 +75,18 @@ export function setupSocket(
       ack({ ok: true, code: room.code });
     });
 
+    socket.on(EVENTS.roomStart, (ack) => {
+      const code = socket.data.roomCode;
+      const room = code ? getRoom(code) : undefined;
+      if (!room) return ack({ ok: false, error: 'Salon introuvable.' });
+      if (room.hostId !== socket.id) {
+        return ack({ ok: false, error: "Seul l'hôte peut lancer la partie." });
+      }
+      const res = startMatch(io, room);
+      if (!res.ok) return ack({ ok: false, error: res.error ?? 'Impossible de démarrer.' });
+      ack({ ok: true });
+    });
+
     socket.on(EVENTS.roomLeave, () => {
       leaveRoom(io, socket);
     });
@@ -88,6 +109,8 @@ function addPlayer(room: Room, socket: MimicSocket, isHost: boolean): void {
     connected: true,
     isHost,
     score: 0,
+    role: null,
+    found: false,
   };
   room.players.set(player.id, player);
   if (isHost) room.hostId = player.id;
@@ -107,6 +130,13 @@ function leaveRoom(
 
   room.players.delete(socket.id);
   socket.leave(code);
+
+  // Salon vidé : on arrête les timers et on supprime.
+  if (room.players.size === 0) {
+    clearRoomTimer(room);
+    deleteRoom(code);
+    return;
+  }
 
   // Réassigne l'hôte si besoin.
   if (room.hostId === socket.id) {

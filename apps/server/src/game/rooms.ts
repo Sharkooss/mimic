@@ -1,4 +1,11 @@
-import { LOBBY, type GameMode, type RoomSnapshot, type PublicPlayer } from '@mimic/shared';
+import {
+  LOBBY,
+  type Artwork,
+  type GameMode,
+  type PlayerRole,
+  type RoomSnapshot,
+  type PublicPlayer,
+} from '@mimic/shared';
 
 /**
  * Registre des salons en mémoire (MVP).
@@ -10,6 +17,10 @@ export interface ServerPlayer extends PublicPlayer {
   socketId: string;
   /** Id du compte si authentifié, sinon null (invité). */
   userId: string | null;
+  /** Rôle sur la manche courante (null en lobby). */
+  role: PlayerRole | null;
+  /** true si trouvé par le chercheur sur la manche courante. */
+  found: boolean;
 }
 
 export interface Room {
@@ -23,6 +34,14 @@ export interface Room {
   seekerId: string | null;
   phaseEndsAt: number | null;
   createdAt: number;
+  /** Œuvre de la manche courante (null en lobby). */
+  artwork: Artwork | null;
+  /** Œuvres tirées pour la partie (une par manche). */
+  artworkSequence: Artwork[];
+  /** Ordre de passage des chercheurs (un id par manche). */
+  seekerOrder: string[];
+  /** Timer de la phase courante (transition automatique). */
+  timer: ReturnType<typeof setTimeout> | null;
 }
 
 const rooms = new Map<string, Room>();
@@ -51,6 +70,10 @@ export function createRoom(mode: GameMode): Room {
     seekerId: null,
     phaseEndsAt: null,
     createdAt: Date.now(),
+    artwork: null,
+    artworkSequence: [],
+    seekerOrder: [],
+    timer: null,
   };
   rooms.set(room.code, room);
   return room;
@@ -72,10 +95,18 @@ export function snapshot(room: Room): RoomSnapshot {
     players: [...room.players.values()].map(publicView),
     round: room.round,
     totalRounds: room.totalRounds,
-    artwork: null,
+    artwork: room.artwork,
     seekerId: room.seekerId,
     phaseEndsAt: room.phaseEndsAt,
   };
+}
+
+/** Arrête proprement la manche en cours (timer). */
+export function clearRoomTimer(room: Room): void {
+  if (room.timer) {
+    clearTimeout(room.timer);
+    room.timer = null;
+  }
 }
 
 function publicView(p: ServerPlayer): PublicPlayer {

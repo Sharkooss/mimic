@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { EVENTS } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
+import { GamePage } from './GamePage.js';
 
 /** Salon d'attente : liste des joueurs, code partageable, lancement (hôte). */
 export function LobbyPage(): JSX.Element {
@@ -21,6 +22,11 @@ export function LobbyPage(): JSX.Element {
 
   if (!room) {
     return <p className="text-center text-stone-500">Connexion au salon…</p>;
+  }
+
+  // Partie en cours : on bascule sur l'écran de jeu.
+  if (room.phase !== 'lobby') {
+    return <GamePage room={room} />;
   }
 
   const me = room.players.find((p) => p.id === socket.id);
