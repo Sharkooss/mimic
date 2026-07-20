@@ -24,6 +24,10 @@ export interface ServerPlayer extends PublicPlayer {
   found: boolean;
   /** Placement du personnage sur le tableau (null tant que non positionné). */
   placement: CharacterPlacement | null;
+  /** Pixels RGBA du personnage verrouillé (null tant que non verrouillé). */
+  pixels: Uint8ClampedArray | null;
+  /** Score de camouflage calculé au verrouillage (0-100), null sinon. */
+  camouflageScore: number | null;
 }
 
 export interface Room {

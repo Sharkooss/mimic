@@ -143,7 +143,7 @@ export function PaintEditor(): JSX.Element {
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!ready) return;
+    if (!ready || useCharacterStore.getState().locked) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     snapshot();
     paintingRef.current = true;

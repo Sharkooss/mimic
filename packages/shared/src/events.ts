@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CHARACTER_ROTATIONS, GAME_MODES, LOBBY } from './constants.js';
+import { CHARACTER_ROTATIONS, CHARACTER_SIZE, GAME_MODES, LOBBY } from './constants.js';
 import type { CamouflageBreakdown, RoomSnapshot } from './types.js';
 
 /* -------------------------------------------------------------------------- */
@@ -29,7 +29,7 @@ export const placementSchema = z.object({
 export const lockCharacterSchema = z.object({
   placement: placementSchema,
   /** Pixels RGBA du personnage (Uint8, 0-255). */
-  pixels: z.array(z.number().int().min(0).max(255)),
+  pixels: z.array(z.number().int().min(0).max(255)).length(CHARACTER_SIZE * CHARACTER_SIZE * 4),
 });
 
 export const seekerClickSchema = z.object({

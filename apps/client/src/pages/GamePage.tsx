@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from 'react';
-import type { RoomSnapshot } from '@mimic/shared';
+import { useRef, useState, type ReactNode } from 'react';
+import { EVENTS, type CamouflageBreakdown, type RoomSnapshot } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
+import { useCharacterStore } from '../store/characterStore.js';
 import { useCountdown } from '../hooks/useCountdown.js';
 import { PaintEditor } from '../paint/PaintEditor.js';
 import { CamouflageStage } from '../paint/CamouflageStage.js';
@@ -83,15 +84,44 @@ function PhaseHeader({ room, remaining }: { room: RoomSnapshot; remaining: numbe
   );
 }
 
-/** Camouflage côté caché : onglets Peindre / Placer (personnage partagé via le store). */
+/** Camouflage côté caché : onglets Peindre / Placer + verrouillage (personnage partagé via le store). */
 function HiderCamouflage({ room }: { room: RoomSnapshot }) {
   const [tab, setTab] = useState<'paint' | 'place'>('paint');
+  const [breakdown, setBreakdown] = useState<CamouflageBreakdown | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const locked = useCharacterStore((s) => s.locked);
+
+  // Nouveau tableau à chaque manche → personnage réinitialisé (avant le montage des enfants).
+  const resetRound = useRef<number | null>(null);
+  if (resetRound.current !== room.round) {
+    resetRound.current = room.round;
+    useCharacterStore.getState().reset();
+  }
+
+  const lock = () => {
+    const st = useCharacterStore.getState();
+    if (!st.pixels) return setError("Peins d'abord ton personnage.");
+    setError(null);
+    socket.emit(
+      EVENTS.characterLock,
+      { placement: { x: st.x, y: st.y, rotation: st.rotation }, pixels: Array.from(st.pixels) },
+      (res) => {
+        if (res.ok) {
+          setBreakdown(res.breakdown);
+          useCharacterStore.getState().setLocked(true);
+        } else {
+          setError(res.error);
+        }
+      },
+    );
+  };
+
   return (
     <>
       <div>
         <div className="font-semibold">Camoufle-toi !</div>
         <p className="text-sm text-stone-500">
-          Peins ton personnage, puis place-le sur le tableau pour le rendre invisible.
+          Peins ton personnage, place-le sur le tableau, puis verrouille avant la fin du temps.
         </p>
       </div>
       <div className="flex gap-1 rounded-lg bg-stone-100 p-1 text-sm font-medium">
@@ -107,8 +137,47 @@ function HiderCamouflage({ room }: { room: RoomSnapshot }) {
       ) : room.artwork ? (
         <CamouflageStage artwork={room.artwork} />
       ) : null}
+
+      {locked && breakdown ? (
+        <BreakdownPanel breakdown={breakdown} />
+      ) : (
+        <button
+          onClick={lock}
+          className="w-full rounded-xl bg-accent py-3 font-semibold text-white transition hover:brightness-110"
+        >
+          🔒 Verrouiller mon camouflage
+        </button>
+      )}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
       <ArtworkCard room={room} />
     </>
+  );
+}
+
+/** Décomposition du score de camouflage après verrouillage. */
+function BreakdownPanel({ breakdown }: { breakdown: CamouflageBreakdown }) {
+  return (
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+      <div className="flex items-baseline justify-between">
+        <span className="font-semibold text-emerald-800">Camouflage verrouillé ✓</span>
+        <span className="font-mono text-3xl font-bold text-emerald-700">{breakdown.score}%</span>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 text-center text-sm">
+        <Metric label="Couleurs" value={breakdown.colorMatch} />
+        <Metric label="Contours" value={breakdown.edgeMatch} />
+        <Metric label="Contraste" value={breakdown.contrast} />
+      </div>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg bg-white/70 py-2">
+      <div className="font-mono text-lg font-semibold">{value}%</div>
+      <div className="text-xs text-stone-500">{label}</div>
+    </div>
   );
 }
 

@@ -1,13 +1,17 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
 import {
+  CHARACTER_SIZE,
   EVENTS,
   createRoomSchema,
   joinRoomSchema,
+  lockCharacterSchema,
+  placeholderColorAt,
   placementSchema,
   type ClientToServerEvents,
   type ServerToClientEvents,
 } from '@mimic/shared';
+import { scoreCamouflage } from './game/camouflage.js';
 import { env } from './env.js';
 import {
   clearRoomTimer,
@@ -93,10 +97,37 @@ export function setupSocket(
       const room = code ? getRoom(code) : undefined;
       if (!room || room.phase !== 'camouflage') return;
       const player = room.players.get(socket.id);
-      if (!player || player.role !== 'hider') return;
+      if (!player || player.role !== 'hider' || player.placement?.locked) return;
       const parsed = placementSchema.safeParse(payload);
       if (!parsed.success) return;
       player.placement = { ...parsed.data, locked: false };
+    });
+
+    socket.on(EVENTS.characterLock, (payload, ack) => {
+      const code = socket.data.roomCode;
+      const room = code ? getRoom(code) : undefined;
+      if (!room || room.phase !== 'camouflage') {
+        return ack({ ok: false, error: "Ce n'est pas le moment de verrouiller." });
+      }
+      const player = room.players.get(socket.id);
+      if (!player || player.role !== 'hider') {
+        return ack({ ok: false, error: 'Action réservée aux joueurs cachés.' });
+      }
+      if (player.placement?.locked) {
+        return ack({ ok: false, error: 'Déjà verrouillé.' });
+      }
+      const parsed = lockCharacterSchema.safeParse(payload);
+      if (!parsed.success) return ack({ ok: false, error: 'Données de personnage invalides.' });
+
+      const { placement, pixels } = parsed.data;
+      const character = Uint8ClampedArray.from(pixels);
+      const background = sampleBackground(room, placement.x, placement.y);
+      const breakdown = scoreCamouflage(character, background);
+
+      player.pixels = character;
+      player.placement = { ...placement, locked: true };
+      player.camouflageScore = breakdown.score;
+      ack({ ok: true, breakdown });
     });
 
     socket.on(EVENTS.roomLeave, () => {
@@ -124,6 +155,8 @@ function addPlayer(room: Room, socket: MimicSocket, isHost: boolean): void {
     role: null,
     found: false,
     placement: null,
+    pixels: null,
+    camouflageScore: null,
   };
   room.players.set(player.id, player);
   if (isHost) room.hostId = player.id;
@@ -165,4 +198,28 @@ function broadcastSnapshot(
   room: Room,
 ): void {
   io.to(room.code).emit(EVENTS.roomSnapshot, snapshot(room));
+}
+
+/**
+ * Échantillonne le fond de l'œuvre sous le personnage (empreinte CHARACTER_SIZE²).
+ * Utilise le placeholder partagé tant que les vraies images ne sont pas là (#17) ;
+ * ce sera remplacé par un échantillonnage de l'image réelle du tableau.
+ */
+function sampleBackground(room: Room, ox: number, oy: number): Uint8ClampedArray {
+  const S = CHARACTER_SIZE;
+  const bg = new Uint8ClampedArray(S * S * 4);
+  const art = room.artwork;
+  for (let j = 0; j < S; j++) {
+    for (let i = 0; i < S; i++) {
+      const idx = (j * S + i) * 4;
+      const [r, g, b] = art
+        ? placeholderColorAt(art.id, art.width, art.height, ox + i, oy + j)
+        : [128, 128, 128];
+      bg[idx] = r;
+      bg[idx + 1] = g;
+      bg[idx + 2] = b;
+      bg[idx + 3] = 255;
+    }
+  }
+  return bg;
 }

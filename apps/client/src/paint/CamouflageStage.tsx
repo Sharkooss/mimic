@@ -3,6 +3,7 @@ import {
   CHARACTER_SIZE,
   CHARACTER_ROTATIONS,
   EVENTS,
+  placeholderCss,
   type Artwork,
   type CharacterRotation,
 } from '@mimic/shared';
@@ -14,15 +15,6 @@ const S = CHARACTER_SIZE;
 const VIEW_W = 640;
 const VIEW_H = 400;
 const EMIT_INTERVAL_MS = 80;
-
-/** Fond déterministe pour l'œuvre (placeholder tant que les vraies images ne sont pas là — #17). */
-function placeholderBg(id: string): string {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  const a = h % 360;
-  const b = (a + 40) % 360;
-  return `linear-gradient(135deg, hsl(${a} 45% 62%), hsl(${b} 40% 42%))`;
-}
 
 interface Camera {
   zoom: number;
@@ -40,6 +32,7 @@ export function CamouflageStage({ artwork }: { artwork: Artwork }): JSX.Element 
   const x = useCharacterStore((s) => s.x);
   const y = useCharacterStore((s) => s.y);
   const rotation = useCharacterStore((s) => s.rotation);
+  const locked = useCharacterStore((s) => s.locked);
   const setPlacement = useCharacterStore((s) => s.setPlacement);
 
   const fitScale = useMemo(
@@ -97,6 +90,7 @@ export function CamouflageStage({ artwork }: { artwork: Artwork }): JSX.Element 
 
   const onCharacterPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
+    if (locked) return;
     drag.current = {
       mode: 'character',
       cx: e.clientX,
@@ -164,6 +158,7 @@ export function CamouflageStage({ artwork }: { artwork: Artwork }): JSX.Element 
   };
 
   const rotate = (dir: 1 | -1) => {
+    if (locked) return;
     const idx = CHARACTER_ROTATIONS.indexOf(rotation);
     const next = CHARACTER_ROTATIONS[(idx + dir + 4) % 4]!;
     setPlacement({ rotation: next });
@@ -195,7 +190,7 @@ export function CamouflageStage({ artwork }: { artwork: Artwork }): JSX.Element 
             width: artwork.width * fitScale,
             height: artwork.height * fitScale,
             transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.zoom})`,
-            background: placeholderBg(artwork.id),
+            background: placeholderCss(artwork.id),
           }}
         >
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-white/40">
