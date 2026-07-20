@@ -3,11 +3,14 @@ import { Server, type Socket } from 'socket.io';
 import {
   CHARACTER_SIZE,
   EVENTS,
+  HIT_RADIUS,
+  WRONG_CLICK_COOLDOWN_MS,
   createRoomSchema,
   joinRoomSchema,
   lockCharacterSchema,
   placeholderColorAt,
   placementSchema,
+  seekerClickSchema,
   type ClientToServerEvents,
   type ServerToClientEvents,
 } from '@mimic/shared';
@@ -22,7 +25,7 @@ import {
   type Room,
   type ServerPlayer,
 } from './game/rooms.js';
-import { startMatch } from './game/match.js';
+import { maybeEndSeeking, startMatch } from './game/match.js';
 
 interface SocketData {
   roomCode: string | null;
@@ -130,6 +133,60 @@ export function setupSocket(
       ack({ ok: true, breakdown });
     });
 
+    socket.on(EVENTS.seekerClick, (payload, ack) => {
+      const code = socket.data.roomCode;
+      const room = code ? getRoom(code) : undefined;
+      if (!room || room.phase !== 'seeking') {
+        return ack({ ok: false, error: "Ce n'est pas le moment de chercher." });
+      }
+      const seeker = room.players.get(socket.id);
+      if (!seeker || seeker.role !== 'seeker') {
+        return ack({ ok: false, error: 'Action réservée au chercheur.' });
+      }
+      const now = Date.now();
+      if (now < seeker.clickCooldownUntil) {
+        return ack({ ok: false, error: 'Patiente un instant après un raté.' });
+      }
+      const parsed = seekerClickSchema.safeParse(payload);
+      if (!parsed.success) return ack({ ok: false, error: 'Clic invalide.' });
+      const { x, y } = parsed.data;
+
+      // Cible = caché verrouillé le plus proche du clic dans le rayon de tolérance.
+      let target: ServerPlayer | null = null;
+      let best = Infinity;
+      for (const p of room.players.values()) {
+        if (p.role !== 'hider' || p.found || !p.placement?.locked || !p.pixels) continue;
+        const cx = p.placement.x + CHARACTER_SIZE / 2;
+        const cy = p.placement.y + CHARACTER_SIZE / 2;
+        const dist = Math.hypot(x - cx, y - cy);
+        if (dist <= HIT_RADIUS && dist < best) {
+          best = dist;
+          target = p;
+        }
+      }
+
+      if (!target) {
+        seeker.clickCooldownUntil = now + WRONG_CLICK_COOLDOWN_MS;
+        return ack({ ok: true, hit: false, playerId: null });
+      }
+
+      target.found = true;
+      target.foundAtMs = now;
+      io.to(room.code).emit(EVENTS.playerFound, {
+        playerId: target.id,
+        byId: seeker.id,
+        foundAtMs: now,
+        placement: {
+          x: target.placement!.x,
+          y: target.placement!.y,
+          rotation: target.placement!.rotation,
+        },
+        pixels: Array.from(target.pixels!),
+      });
+      ack({ ok: true, hit: true, playerId: target.id });
+      maybeEndSeeking(io, room);
+    });
+
     socket.on(EVENTS.roomLeave, () => {
       leaveRoom(io, socket);
     });
@@ -154,9 +211,11 @@ function addPlayer(room: Room, socket: MimicSocket, isHost: boolean): void {
     score: 0,
     role: null,
     found: false,
+    foundAtMs: null,
     placement: null,
     pixels: null,
     camouflageScore: null,
+    clickCooldownUntil: 0,
   };
   room.players.set(player.id, player);
   if (isHost) room.hostId = player.id;

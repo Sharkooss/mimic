@@ -44,17 +44,34 @@ function beginRound(io: IO, room: Room): void {
   room.seekerId = room.seekerOrder[room.round] ?? null;
   room.artwork = room.artworkSequence[room.round] ?? null;
 
+  room.seekingStartedAt = null;
   for (const p of room.players.values()) {
     p.found = false;
+    p.foundAtMs = null;
     p.placement = null;
     p.pixels = null;
     p.camouflageScore = null;
+    p.clickCooldownUntil = 0;
     p.role = p.id === room.seekerId ? 'seeker' : 'hider';
   }
 
   setPhase(io, room, 'camouflage', PHASE_DURATIONS.camouflage, () => {
     setPhase(io, room, 'seeking', PHASE_DURATIONS.seeking, () => endRound(io, room));
   });
+}
+
+/**
+ * Termine la recherche en avance si tous les cachés en jeu (verrouillés) ont été
+ * trouvés — inutile de laisser tourner le chrono. Appelé après chaque trouvaille.
+ */
+export function maybeEndSeeking(io: IO, room: Room): void {
+  if (room.phase !== 'seeking') return;
+  const inPlay = [...room.players.values()].filter(
+    (p) => p.role === 'hider' && p.placement?.locked,
+  );
+  if (inPlay.length === 0 || inPlay.some((p) => !p.found)) return;
+  clearRoomTimer(room);
+  endRound(io, room);
 }
 
 /** Clôt la manche : attribue les points puis affiche les résultats. */
@@ -93,6 +110,7 @@ function setPhase(
 ): void {
   clearRoomTimer(room);
   room.phase = phase;
+  if (phase === 'seeking') room.seekingStartedAt = Date.now();
   room.phaseEndsAt = Date.now() + durationSec * 1000;
   broadcast(io, room);
   io.to(room.code).emit(EVENTS.phaseChanged, phase, room.phaseEndsAt);
@@ -115,9 +133,14 @@ function awardRoundPoints(room: Room): RoundResults {
       pts += foundCount * SCORING.seekerPerFind;
       if (hiders.length > 0 && foundCount === hiders.length) pts += SCORING.seekerSweepBonus;
     } else if (p.role === 'hider') {
-      // Survie sur toute la phase (approximation tant que les trouvailles ne
-      // sont pas horodatées — affiné en #11).
-      const survived = Math.floor(PHASE_DURATIONS.seeking / SCORING.hiddenSurvivalIntervalSec);
+      // Survie horodatée : temps tenu avant d'être trouvé (toute la phase si jamais trouvé).
+      const seekStart = room.seekingStartedAt ?? Date.now();
+      const seekDurMs = PHASE_DURATIONS.seeking * 1000;
+      const survivedMs = p.found && p.foundAtMs != null ? p.foundAtMs - seekStart : seekDurMs;
+      const survived = Math.max(
+        0,
+        Math.floor(survivedMs / 1000 / SCORING.hiddenSurvivalIntervalSec),
+      );
       pts += survived * SCORING.hiddenSurvivalPoints;
       if (!p.found) pts += SCORING.hiddenNeverFoundBonus;
     }

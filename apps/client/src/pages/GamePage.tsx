@@ -6,6 +6,7 @@ import { useCharacterStore } from '../store/characterStore.js';
 import { useCountdown } from '../hooks/useCountdown.js';
 import { PaintEditor } from '../paint/PaintEditor.js';
 import { CamouflageStage } from '../paint/CamouflageStage.js';
+import { SeekerStage } from '../paint/SeekerStage.js';
 
 /**
  * Écran de partie (ossature — issue #7).
@@ -17,6 +18,7 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
   const remaining = useCountdown(room.phaseEndsAt);
   const results = useGameStore((s) => s.results);
   const isSeeker = room.seekerId === socket.id;
+  const totalHiders = Math.max(0, room.players.length - 1);
 
   return (
     <div className="space-y-6">
@@ -26,7 +28,15 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
         <PhaseCard>
           {isSeeker ? (
             <>
-              <Waiting text="Tu es le chercheur. Observe l'œuvre… la traque commence bientôt." />
+              <div>
+                <div className="font-semibold">Tu es le chercheur 🔍</div>
+                <p className="text-sm text-stone-500">
+                  Observe l’œuvre et mémorise les cachettes possibles. La traque commence bientôt.
+                </p>
+              </div>
+              {room.artwork && (
+                <SeekerStage artwork={room.artwork} interactive={false} totalHiders={totalHiders} />
+              )}
               <ArtworkCard room={room} />
             </>
           ) : (
@@ -38,11 +48,17 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
       {room.phase === 'seeking' && (
         <PhaseCard>
           {isSeeker ? (
-            <Waiting text="À toi de jouer : trouve les cachés ! (vue chercheur — issue #9)" />
+            room.artwork ? (
+              <SeekerStage artwork={room.artwork} interactive totalHiders={totalHiders} />
+            ) : (
+              <Waiting text="En attente de l’œuvre…" />
+            )
           ) : (
-            <Waiting text="Reste immobile et prie pour ne pas être repéré…" />
+            <>
+              <Waiting text="Reste immobile et prie pour ne pas être repéré…" />
+              <ArtworkCard room={room} />
+            </>
           )}
-          <ArtworkCard room={room} />
         </PhaseCard>
       )}
 

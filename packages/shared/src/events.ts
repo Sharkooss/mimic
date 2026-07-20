@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CHARACTER_ROTATIONS, CHARACTER_SIZE, GAME_MODES, LOBBY } from './constants.js';
-import type { CamouflageBreakdown, RoomSnapshot } from './types.js';
+import type { CamouflageBreakdown, CharacterPlacement, RoomSnapshot } from './types.js';
 
 /* -------------------------------------------------------------------------- */
 /*  Schémas de payload (validés côté serveur avec zod)                        */
@@ -67,11 +67,22 @@ export interface ClientToServerEvents {
   ) => void;
 }
 
+/** Révélation d'un caché trouvé : diffusée à toute la salle pour l'afficher à sa cachette. */
+export interface PlayerFoundReveal {
+  playerId: string;
+  byId: string;
+  foundAtMs: number;
+  /** Position révélée (le chercheur ne la connaît qu'une fois le caché trouvé). */
+  placement: Pick<CharacterPlacement, 'x' | 'y' | 'rotation'>;
+  /** Pixels RGBA du personnage, pour le dessiner à sa cachette. */
+  pixels: number[];
+}
+
 /** Événements émis par le serveur vers le client. */
 export interface ServerToClientEvents {
   'room:snapshot': (snapshot: RoomSnapshot) => void;
   'phase:changed': (phase: RoomSnapshot['phase'], phaseEndsAt: number | null) => void;
-  'player:found': (data: { playerId: string; byId: string; foundAtMs: number }) => void;
+  'player:found': (data: PlayerFoundReveal) => void;
   'round:results': (data: RoundResults) => void;
   'error:toast': (message: string) => void;
 }

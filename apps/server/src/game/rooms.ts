@@ -22,12 +22,16 @@ export interface ServerPlayer extends PublicPlayer {
   role: PlayerRole | null;
   /** true si trouvé par le chercheur sur la manche courante. */
   found: boolean;
+  /** Timestamp (ms epoch) où le joueur a été trouvé, null sinon. */
+  foundAtMs: number | null;
   /** Placement du personnage sur le tableau (null tant que non positionné). */
   placement: CharacterPlacement | null;
   /** Pixels RGBA du personnage verrouillé (null tant que non verrouillé). */
   pixels: Uint8ClampedArray | null;
   /** Score de camouflage calculé au verrouillage (0-100), null sinon. */
   camouflageScore: number | null;
+  /** (Chercheur) timestamp (ms epoch) avant lequel un nouveau clic est refusé. */
+  clickCooldownUntil: number;
 }
 
 export interface Room {
@@ -43,6 +47,8 @@ export interface Room {
   createdAt: number;
   /** Œuvre de la manche courante (null en lobby). */
   artwork: Artwork | null;
+  /** Timestamp (ms epoch) de début de la phase de recherche (pour la survie). */
+  seekingStartedAt: number | null;
   /** Œuvres tirées pour la partie (une par manche). */
   artworkSequence: Artwork[];
   /** Ordre de passage des chercheurs (un id par manche). */
@@ -78,6 +84,7 @@ export function createRoom(mode: GameMode): Room {
     phaseEndsAt: null,
     createdAt: Date.now(),
     artwork: null,
+    seekingStartedAt: null,
     artworkSequence: [],
     seekerOrder: [],
     timer: null,
