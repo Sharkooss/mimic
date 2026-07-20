@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { CHARACTER_SIZE, placeholderCss, type Artwork } from '@mimic/shared';
+import { CHARACTER_SIZE, type Artwork } from '@mimic/shared';
 import { useCharacterStore } from '../store/characterStore.js';
 import { useCharacterPainting } from './useCharacterPainting.js';
 import { PaintToolbar } from './PaintToolbar.js';
+import { artworkBg } from './artworkBg.js';
 
 const S = CHARACTER_SIZE;
 const VIEW = 460;
@@ -75,7 +76,7 @@ export function BoardPaintStage({ artwork }: { artwork: Artwork }): JSX.Element 
             width: artwork.width * SCALE,
             height: artwork.height * SCALE,
             transform: `translate(${originX}px, ${originY}px)`,
-            background: placeholderCss(artwork.id),
+            background: artworkBg(artwork),
           }}
         />
         {/* Cadre de la zone peignable (empreinte du personnage) */}

@@ -49,9 +49,12 @@ const onSnap = (sock) => (snap) => {
     if (!res.ok) fail(`lock refusé: ${res.error}`);
     const b = res.breakdown;
     console.log('✓ lock OK, breakdown =', b);
-    if (typeof b.score !== 'number' || b.score < 0 || b.score > 100) fail('score hors bornes');
-    if (b.score < 90) fail(`score trop bas pour un match parfait: ${b.score}`);
-    console.log('✓ score cohérent (match parfait ≈ 100%)');
+    // NB : depuis #17 le fond est la vraie image (pas le placeholder), donc ce
+    // personnage ne matche pas parfaitement. On vérifie juste un breakdown cohérent.
+    for (const [k, v] of Object.entries(b)) {
+      if (typeof v !== 'number' || v < 0 || v > 100) fail(`${k} hors bornes: ${v}`);
+    }
+    console.log('✓ breakdown cohérent (toutes métriques 0-100)');
     host.close();
     guest.close();
     process.exit(0);

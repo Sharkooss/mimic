@@ -1,5 +1,6 @@
-import { CHARACTER_SIZE, placeholderCss, type Artwork, type RoundReveal } from '@mimic/shared';
+import { CHARACTER_SIZE, type Artwork, type RoundReveal } from '@mimic/shared';
 import { PixelSprite } from './PixelSprite.js';
+import { artworkBg } from './artworkBg.js';
 
 const S = CHARACTER_SIZE;
 const VIEW_W = 640;
@@ -24,11 +25,13 @@ export function ResultsStage({
     <div className="pt-5">
       <div
         className="relative rounded-xl border border-stone-300"
-        style={{ width: boardW, height: boardH, background: placeholderCss(artwork.id) }}
+        style={{ width: boardW, height: boardH, background: artworkBg(artwork) }}
       >
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-white/40">
-          <span className="text-2xl font-semibold">{artwork.title}</span>
-        </div>
+        {!artwork.imageUrl && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-white/40">
+            <span className="text-2xl font-semibold">{artwork.title}</span>
+          </div>
+        )}
         {reveals.map((r) => (
           <div
             key={r.playerId}

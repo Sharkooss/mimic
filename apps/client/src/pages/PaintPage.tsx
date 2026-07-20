@@ -5,18 +5,18 @@ import { BoardPaintStage } from '../paint/BoardPaintStage.js';
 import { loadCharacterBase } from '../paint/character.js';
 import { useCharacterStore } from '../store/characterStore.js';
 
-/** Œuvre d'exemple pour tester le plateau hors partie. */
+/** Œuvre d'exemple (vraie image #17) pour tester le plateau hors partie. */
 const SAMPLE: Artwork = {
-  id: 'atelier-sample',
-  title: 'Œuvre de test',
-  author: 'Atelier',
-  year: null,
-  width: 1600,
-  height: 1000,
-  difficulty: 2,
+  id: 'the-gulf-stream',
+  title: 'The Gulf Stream',
+  author: 'Winslow Homer',
+  year: '1899',
+  width: 1280,
+  height: 790,
+  difficulty: 3,
   recommendedMaxPlayers: 8,
   maxZoom: 8,
-  imageUrl: '',
+  imageUrl: '/artworks/the-gulf-stream.jpg',
 };
 
 /** Page de test isolée : flux placer → peindre sur le tableau (hors partie). */

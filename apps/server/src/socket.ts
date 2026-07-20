@@ -8,13 +8,13 @@ import {
   createRoomSchema,
   joinRoomSchema,
   lockCharacterSchema,
-  placeholderColorAt,
   placementSchema,
   seekerClickSchema,
   type ClientToServerEvents,
   type ServerToClientEvents,
 } from '@mimic/shared';
 import { scoreCamouflage } from './game/camouflage.js';
+import { sampleArtworkBackground } from './game/artworkPixels.js';
 import { env } from './env.js';
 import {
   clearRoomTimer,
@@ -146,7 +146,7 @@ export function setupSocket(
 
       const { placement, pixels } = parsed.data;
       const character = Uint8ClampedArray.from(pixels);
-      const background = sampleBackground(room, placement.x, placement.y);
+      const background = sampleArtworkBackground(room.artwork, placement.x, placement.y);
       const breakdown = scoreCamouflage(character, background);
 
       player.pixels = character;
@@ -320,28 +320,4 @@ function broadcastSnapshot(
   room: Room,
 ): void {
   io.to(room.code).emit(EVENTS.roomSnapshot, snapshot(room));
-}
-
-/**
- * Échantillonne le fond de l'œuvre sous le personnage (empreinte CHARACTER_SIZE²).
- * Utilise le placeholder partagé tant que les vraies images ne sont pas là (#17) ;
- * ce sera remplacé par un échantillonnage de l'image réelle du tableau.
- */
-function sampleBackground(room: Room, ox: number, oy: number): Uint8ClampedArray {
-  const S = CHARACTER_SIZE;
-  const bg = new Uint8ClampedArray(S * S * 4);
-  const art = room.artwork;
-  for (let j = 0; j < S; j++) {
-    for (let i = 0; i < S; i++) {
-      const idx = (j * S + i) * 4;
-      const [r, g, b] = art
-        ? placeholderColorAt(art.id, art.width, art.height, ox + i, oy + j)
-        : [128, 128, 128];
-      bg[idx] = r;
-      bg[idx + 1] = g;
-      bg[idx + 2] = b;
-      bg[idx + 3] = 255;
-    }
-  }
-  return bg;
 }

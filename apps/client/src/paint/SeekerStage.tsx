@@ -3,13 +3,13 @@ import {
   CHARACTER_SIZE,
   EVENTS,
   WRONG_CLICK_COOLDOWN_MS,
-  placeholderCss,
   type Artwork,
   type CharacterRotation,
   type PlayerFoundReveal,
 } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { PixelSprite } from './PixelSprite.js';
+import { artworkBg } from './artworkBg.js';
 
 const S = CHARACTER_SIZE;
 const VIEW_W = 640;
@@ -216,12 +216,14 @@ export function SeekerStage({
             width: artwork.width * fitScale,
             height: artwork.height * fitScale,
             transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.zoom})`,
-            background: placeholderCss(artwork.id),
+            background: artworkBg(artwork),
           }}
         >
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-white/40">
-            <span className="text-2xl font-semibold">{artwork.title}</span>
-          </div>
+          {!artwork.imageUrl && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-white/40">
+              <span className="text-2xl font-semibold">{artwork.title}</span>
+            </div>
+          )}
           {/* Cachés révélés */}
           {found.map((r) => (
             <div
