@@ -1,0 +1,19 @@
+# PostgreSQL local pour le développement (hors production).
+#   docker compose -f compose.dev.yaml up -d
+# Puis, dans apps/server/.env :
+#   DATABASE_URL=postgresql://mimic:mimic@localhost:5432/mimic
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_DB: mimic
+      POSTGRES_USER: mimic
+      POSTGRES_PASSWORD: mimic
+    volumes:
+      - mimic_dev_db:/var/lib/postgresql/data
+
+volumes:
+  mimic_dev_db:

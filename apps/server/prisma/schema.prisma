@@ -1,0 +1,102 @@
+// Schéma Prisma — Mimic
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Compte utilisateur.
+model User {
+  id           String   @id @default(cuid())
+  pseudo       String   @unique
+  email        String   @unique
+  passwordHash String
+  avatarUrl    String?
+  level        Int      @default(1)
+  xp           Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stats   PlayerStats?
+  matches MatchParticipant[]
+}
+
+/// Statistiques agrégées d'un joueur (profil partageable).
+model PlayerStats {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  gamesPlayed        Int   @default(0)
+  gamesWon           Int   @default(0)
+  timesSeeker        Int   @default(0)
+  playersFound       Int   @default(0)
+  hiddenSeconds      Int   @default(0)
+  bestCamouflage     Float @default(0)
+  avgCamouflage      Float @default(0)
+  camouflageSamples  Int   @default(0)
+  timesFound         Int   @default(0)
+  avgSurvivalSeconds Float @default(0)
+  missedClicks       Int   @default(0)
+  totalClicks        Int   @default(0)
+
+  updatedAt DateTime @updatedAt
+}
+
+/// Métadonnées d'une œuvre jouable.
+model Artwork {
+  id                   String   @id @default(cuid())
+  title                String
+  author               String
+  year                 String?
+  width                Int
+  height               Int
+  difficulty           Int      @default(1)
+  recommendedMaxPlayers Int     @default(10)
+  maxZoom              Float    @default(8)
+  imageUrl             String
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  rounds MatchRound[]
+}
+
+/// Une partie terminée (persistée pour l'historique et les stats).
+model Match {
+  id        String   @id @default(cuid())
+  code      String
+  mode      String
+  createdAt DateTime @default(now())
+  endedAt   DateTime?
+
+  participants MatchParticipant[]
+  rounds       MatchRound[]
+}
+
+model MatchParticipant {
+  id      String @id @default(cuid())
+  matchId String
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  userId  String?
+  user    User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  pseudo  String
+  score   Int    @default(0)
+
+  @@index([matchId])
+}
+
+model MatchRound {
+  id        String  @id @default(cuid())
+  matchId   String
+  match     Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  artworkId String?
+  artwork   Artwork? @relation(fields: [artworkId], references: [id], onDelete: SetNull)
+  index     Int
+  seekerId  String?
+
+  @@index([matchId])
+}

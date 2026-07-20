@@ -1,0 +1,16 @@
+**/node_modules
+**/dist
+**/build
+**/.vite
+**/*.tsbuildinfo
+**/coverage
+.git
+.github
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+docs
+**/*.md
+!README.md
