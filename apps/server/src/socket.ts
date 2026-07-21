@@ -180,6 +180,17 @@ export function setupSocket(
       if (!player || player.role !== 'hider') return;
       const parsed = presenceUpdateSchema.safeParse(payload);
       if (!parsed.success) return;
+      // Mémorise le dernier état connu : il devient le camouflage définitif au
+      // verrouillage automatique de fin de phase (le joueur n'a rien à valider).
+      if (!player.placement?.locked) {
+        player.placement = {
+          x: parsed.data.x,
+          y: parsed.data.y,
+          rotation: parsed.data.rotation,
+          locked: false,
+        };
+        player.draftPixels = Uint8ClampedArray.from(parsed.data.pixels);
+      }
       const data = {
         playerId: player.id,
         pseudo: player.pseudo,
@@ -321,6 +332,7 @@ function addPlayer(room: Room, socket: MimicSocket, isHost: boolean): void {
     foundAtMs: null,
     placement: null,
     pixels: null,
+    draftPixels: null,
     camouflageScore: null,
     clickCooldownUntil: 0,
     matchStats: freshMatchStats(),

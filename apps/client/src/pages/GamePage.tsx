@@ -1,12 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  EVENTS,
-  type CamouflageBreakdown,
-  type RoomSnapshot,
-  type RoundReveal,
-} from '@mimic/shared';
-import { socket } from '../lib/socket.js';
+import type { RoomSnapshot, RoundReveal } from '@mimic/shared';
 import { useGameStore } from '../store/gameStore.js';
 import { useCharacterStore } from '../store/characterStore.js';
 import { useCountdown } from '../hooks/useCountdown.js';
@@ -14,12 +8,14 @@ import { loadCharacterBase } from '../paint/character.js';
 import { CamouflageBoard } from '../paint/CamouflageBoard.js';
 import { SeekerStage } from '../paint/SeekerStage.js';
 import { ResultsStage } from '../paint/ResultsStage.js';
+import { Wordmark } from '../components/ui.js';
 
 /**
- * Écran de partie (ossature — issue #7).
- * Affiche la phase courante, le compte à rebours, le rôle et l'œuvre.
- * Le contenu jouable (peinture #8, recherche #9, scoring #10) viendra remplir
- * les zones de chaque phase.
+ * Écran de partie. Les phases jouables (camouflage, recherche) passent en plein
+ * écran : tableau central maximisé, panneau d'infos à gauche, outils à droite,
+ * scroll de page gelé. Le camouflage est validé automatiquement à la fin du
+ * chrono (côté serveur) — aucun bouton de confirmation. Résultats et classement
+ * final restent en flux normal.
  */
 export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
   const remaining = useCountdown(room.phaseEndsAt);
@@ -27,48 +23,42 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
   const myId = useGameStore((s) => s.playerId);
   const isSeeker = room.seekerId === myId;
   const totalHiders = Math.max(0, room.players.length - 1);
+  const fullscreen = room.phase === 'camouflage' || room.phase === 'seeking';
+
+  // Plein écran de jeu : on gèle le scroll de la page derrière l'overlay.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [fullscreen]);
+
+  if (fullscreen) {
+    return (
+      <div className="fixed inset-0 z-50 flex bg-canvas">
+        <GameSidebar room={room} remaining={remaining} isSeeker={isSeeker} />
+        <main className="min-w-0 flex-1">
+          {!room.artwork ? (
+            <Waiting text="En attente de l’œuvre…" />
+          ) : room.phase === 'camouflage' && !isSeeker ? (
+            <HiderBoard room={room} artworkId={room.artwork.id} />
+          ) : (
+            <SeekerStage
+              artwork={room.artwork}
+              interactive={room.phase === 'seeking' && isSeeker}
+              totalHiders={totalHiders}
+            />
+          )}
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <PhaseHeader room={room} remaining={remaining} />
-
-      {room.phase === 'camouflage' && (
-        <PhaseCard>
-          {isSeeker ? (
-            <>
-              <div>
-                <div className="font-semibold">Tu es le chercheur 🔍</div>
-                <p className="text-sm text-stone-500">
-                  Observe l’œuvre et mémorise les cachettes possibles. La traque commence bientôt.
-                </p>
-              </div>
-              {room.artwork && (
-                <SeekerStage artwork={room.artwork} interactive={false} totalHiders={totalHiders} />
-              )}
-              <ArtworkCard room={room} />
-            </>
-          ) : (
-            <HiderCamouflage room={room} />
-          )}
-        </PhaseCard>
-      )}
-
-      {room.phase === 'seeking' && (
-        <PhaseCard>
-          {isSeeker ? (
-            room.artwork ? (
-              <SeekerStage artwork={room.artwork} interactive totalHiders={totalHiders} />
-            ) : (
-              <Waiting text="En attente de l’œuvre…" />
-            )
-          ) : (
-            <>
-              <Waiting text="Reste immobile et prie pour ne pas être repéré…" />
-              <ArtworkCard room={room} />
-            </>
-          )}
-        </PhaseCard>
-      )}
 
       {room.phase === 'results' && (
         <PhaseCard>
@@ -83,6 +73,125 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
       {room.phase === 'finished' && <FinalStandings room={room} />}
     </div>
   );
+}
+
+/**
+ * Plateau du caché : réinitialise le personnage à chaque manche (avant le
+ * montage des enfants) et charge la silhouette de base. La validation est
+ * automatique en fin de chrono — le serveur garde le dernier état relayé.
+ */
+function HiderBoard({ room, artworkId }: { room: RoomSnapshot; artworkId: string }) {
+  const resetRound = useRef<number | null>(null);
+  if (resetRound.current !== room.round) {
+    resetRound.current = room.round;
+    useCharacterStore.getState().reset();
+  }
+
+  useEffect(() => {
+    const st = useCharacterStore.getState();
+    if (st.pixels && st.mask) return;
+    let alive = true;
+    loadCharacterBase()
+      .then(({ mask, pixels }) => {
+        if (alive && !useCharacterStore.getState().pixels) {
+          useCharacterStore.getState().setBase(mask, pixels);
+        }
+      })
+      .catch((e) => console.error(e));
+    return () => {
+      alive = false;
+    };
+  }, [room.round]);
+
+  return <CamouflageBoard key={artworkId} artwork={room.artwork!} live />;
+}
+
+/** Colonne d'infos du plein écran : manche, chrono, consigne, œuvre. */
+function GameSidebar({
+  room,
+  remaining,
+  isSeeker,
+}: {
+  room: RoomSnapshot;
+  remaining: number | null;
+  isSeeker: boolean;
+}) {
+  const camo = room.phase === 'camouflage';
+  const a = room.artwork;
+  const urgent = remaining != null && remaining <= 10;
+
+  const consigne = camo
+    ? isSeeker
+      ? {
+          title: 'Tu es le chercheur 🔍',
+          text: 'Observe l’œuvre et mémorise les cachettes possibles. La traque commence à la fin du chrono.',
+        }
+      : {
+          title: 'Camoufle-toi ! 🎨',
+          text: 'Place ton personnage puis peins-le pour le fondre dans l’œuvre. Espace = pipette pour capturer les couleurs.',
+        }
+    : isSeeker
+      ? {
+          title: 'À toi de jouer 🔍',
+          text: 'Clique sur les personnages camouflés. Un raté impose 3 s d’attente.',
+        }
+      : {
+          title: 'Ne bouge plus 🤫',
+          text: 'Le chercheur scrute l’œuvre. Reste immobile et prie pour ne pas être repéré…',
+        };
+
+  return (
+    <aside className="flex w-60 shrink-0 flex-col gap-4 overflow-y-auto border-r border-line bg-surface p-4">
+      <Link to="/" className="transition hover:opacity-80">
+        <Wordmark />
+      </Link>
+
+      <div>
+        <div className="text-xs uppercase tracking-wide text-muted">
+          Manche {Math.min(room.round + 1, room.totalRounds)} / {room.totalRounds}
+        </div>
+        <div className="text-xl font-bold">{camo ? 'Camouflage' : 'Recherche'}</div>
+      </div>
+
+      <div
+        className={`rounded-xl border p-3 text-center font-mono text-4xl tabular-nums transition-colors ${
+          urgent ? 'border-red-200 bg-red-50 text-red-600' : 'border-line bg-canvas text-accent'
+        }`}
+      >
+        {formatTime(remaining)}
+      </div>
+
+      <div className="rounded-xl bg-accent-soft p-3 text-sm">
+        <div className="mb-1 font-semibold">{consigne.title}</div>
+        <p className="text-muted">{consigne.text}</p>
+      </div>
+
+      {camo && !isSeeker && (
+        <p className="rounded-xl border border-dashed border-line p-3 text-xs leading-relaxed text-muted">
+          ⏱ Ton camouflage est <span className="font-semibold text-ink">validé automatiquement</span>{' '}
+          à la fin du chrono — rien à confirmer.
+        </p>
+      )}
+
+      {a && (
+        <div className="rounded-xl bg-canvas p-3 text-sm">
+          <div className="font-semibold">{a.title}</div>
+          <div className="mt-0.5 text-xs text-muted">
+            {a.author} · {a.year}
+          </div>
+          <div className="mt-1 text-xs text-gold">
+            {'★'.repeat(a.difficulty)}
+            {'☆'.repeat(4 - a.difficulty)}
+          </div>
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function formatTime(remaining: number | null): string {
+  if (remaining == null) return '--:--';
+  return `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`;
 }
 
 function PhaseHeader({ room, remaining }: { room: RoomSnapshot; remaining: number | null }) {
@@ -102,122 +211,8 @@ function PhaseHeader({ room, remaining }: { room: RoomSnapshot; remaining: numbe
         <div className="text-2xl font-bold">{label[room.phase]}</div>
       </div>
       {remaining != null && (
-        <div className="font-mono text-3xl tabular-nums text-accent">
-          {String(Math.floor(remaining / 60)).padStart(2, '0')}:
-          {String(remaining % 60).padStart(2, '0')}
-        </div>
+        <div className="font-mono text-3xl tabular-nums text-accent">{formatTime(remaining)}</div>
       )}
-    </div>
-  );
-}
-
-/**
- * Camouflage côté caché (refonte #35). Flux : se placer sur le tableau →
- * verrouiller la pose → peindre en contexte sur le tableau → verrouiller le
- * camouflage (soumission + score). La pose reste re-modifiable jusqu'au
- * verrouillage final. Personnage partagé via le store.
- */
-function HiderCamouflage({ room }: { room: RoomSnapshot }) {
-  const [breakdown, setBreakdown] = useState<CamouflageBreakdown | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const locked = useCharacterStore((s) => s.locked);
-
-  // Nouveau tableau à chaque manche → personnage réinitialisé (avant le montage des enfants).
-  const resetRound = useRef<number | null>(null);
-  if (resetRound.current !== room.round) {
-    resetRound.current = room.round;
-    useCharacterStore.getState().reset();
-    setBreakdown(null);
-    setError(null);
-  }
-
-  // Charge la silhouette de base dès la manche.
-  useEffect(() => {
-    const st = useCharacterStore.getState();
-    if (st.pixels && st.mask) return;
-    let alive = true;
-    loadCharacterBase()
-      .then(({ mask, pixels }) => {
-        if (alive && !useCharacterStore.getState().pixels) {
-          useCharacterStore.getState().setBase(mask, pixels);
-        }
-      })
-      .catch((e) => console.error(e));
-    return () => {
-      alive = false;
-    };
-  }, [room.round]);
-
-  const lock = () => {
-    const st = useCharacterStore.getState();
-    if (!st.pixels) return setError("Peins d'abord ton personnage.");
-    setError(null);
-    socket.emit(
-      EVENTS.characterLock,
-      { placement: { x: st.x, y: st.y, rotation: st.rotation }, pixels: Array.from(st.pixels) },
-      (res) => {
-        if (res.ok) {
-          setBreakdown(res.breakdown);
-          useCharacterStore.getState().setLocked(true);
-        } else {
-          setError(res.error);
-        }
-      },
-    );
-  };
-
-  return (
-    <>
-      <div>
-        <div className="font-semibold">Camoufle-toi !</div>
-        <p className="text-sm text-muted">
-          Déplace, puis peins ton personnage pour le fondre dans l’œuvre. Utilise la pipette 💧 (ou{' '}
-          <kbd className="rounded bg-line px-1 text-[11px]">Espace</kbd>) pour capturer les couleurs
-          du tableau.
-        </p>
-      </div>
-
-      {room.artwork && <CamouflageBoard artwork={room.artwork} live />}
-
-      {locked && breakdown ? (
-        <BreakdownPanel breakdown={breakdown} />
-      ) : (
-        <button
-          onClick={lock}
-          className="w-full rounded-xl bg-accent py-3.5 font-semibold text-white shadow-soft transition hover:bg-accent-dark"
-        >
-          🔒 Verrouiller mon camouflage
-        </button>
-      )}
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      <ArtworkCard room={room} />
-    </>
-  );
-}
-
-/** Décomposition du score de camouflage après verrouillage. */
-function BreakdownPanel({ breakdown }: { breakdown: CamouflageBreakdown }) {
-  return (
-    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-      <div className="flex items-baseline justify-between">
-        <span className="font-semibold text-emerald-800">Camouflage verrouillé ✓</span>
-        <span className="font-mono text-3xl font-bold text-emerald-700">{breakdown.score}%</span>
-      </div>
-      <div className="mt-3 grid grid-cols-3 gap-2 text-center text-sm">
-        <Metric label="Couleurs" value={breakdown.colorMatch} />
-        <Metric label="Contours" value={breakdown.edgeMatch} />
-        <Metric label="Contraste" value={breakdown.contrast} />
-      </div>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg bg-white/70 py-2">
-      <div className="font-mono text-lg font-semibold">{value}%</div>
-      <div className="text-xs text-stone-500">{label}</div>
     </div>
   );
 }
@@ -229,26 +224,7 @@ function PhaseCard({ children }: { children: ReactNode }) {
 }
 
 function Waiting({ text }: { text: string }) {
-  return <p className="text-stone-600">{text}</p>;
-}
-
-function ArtworkCard({ room }: { room: RoomSnapshot }) {
-  if (!room.artwork) return null;
-  const a = room.artwork;
-  return (
-    <div className="flex items-center gap-4 rounded-xl bg-stone-50 p-4">
-      <div className="flex h-20 w-28 items-center justify-center rounded-lg border border-dashed border-stone-300 text-xs text-stone-400">
-        {a.width}×{a.height}
-      </div>
-      <div>
-        <div className="font-semibold">{a.title}</div>
-        <div className="text-sm text-stone-500">
-          {a.author} · {a.year} · {'★'.repeat(a.difficulty)}
-          {'☆'.repeat(4 - a.difficulty)}
-        </div>
-      </div>
-    </div>
-  );
+  return <p className="p-6 text-stone-600">{text}</p>;
 }
 
 /** Classement final soigné : podium + classement complet (#22). */

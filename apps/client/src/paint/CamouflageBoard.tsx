@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   CHARACTER_ROTATIONS,
   CHARACTER_SIZE,
@@ -14,8 +14,6 @@ import { artworkBg } from './artworkBg.js';
 import { rgbToHex } from './paintOps.js';
 
 const S = CHARACTER_SIZE;
-const VIEW_W = 600;
-const VIEW_H = 460;
 const MOVE_EMIT_MS = 80;
 const PRESENCE_MS = 350;
 
@@ -54,11 +52,12 @@ const BASE_PALETTE = [
 const SIZES = [1, 2, 3, 5, 8] as const;
 
 /**
- * Plateau de camouflage unifié : placer + peindre au même endroit, directement
- * sur le tableau. Caméra (zoom/pan), outil Déplacer, pinceau/pot/pipette, la
- * pipette échantillonne les vraies couleurs de l'œuvre. Raccourcis clavier
- * (Espace = pipette, B/G/E/V, 1-5, R, molette = zoom). Présence des autres cachés
- * en temps réel (relayée par le serveur, hors chercheur).
+ * Plateau de camouflage plein écran : le tableau remplit tout l'espace
+ * disponible (mesuré en continu), les outils vivent dans un panneau vertical à
+ * droite. Caméra (zoom/pan), Déplacer, pinceau/pot/pipette ; la pipette
+ * échantillonne les vraies couleurs de l'œuvre puis rebascule sur le pinceau.
+ * Le dernier état (position + peinture) est relayé en continu au serveur, qui
+ * verrouille automatiquement le camouflage à la fin du chrono.
  */
 export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; live?: boolean }) {
   const paint = useCharacterPainting();
@@ -70,6 +69,7 @@ export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; l
   const locked = useCharacterStore((s) => s.locked);
   const setPlacement = useCharacterStore((s) => s.setPlacement);
 
+  const wrapRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const charRef = useRef<HTMLCanvasElement>(null);
   const sampleRef = useRef<HTMLCanvasElement | null>(null);
@@ -79,10 +79,22 @@ export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; l
   const [artColors, setArtColors] = useState<string[]>([]);
   const [others, setOthers] = useState<Record<string, Other>>({});
   const [cam, setCam] = useState<Camera>({ zoom: 1, x: 0, y: 0 });
+  const [vp, setVp] = useState({ w: 960, h: 640 });
+
+  // Le plateau épouse son conteneur (plein écran, pas de scroll).
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const update = () => setVp({ w: el.clientWidth, h: el.clientHeight });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const fitScale = useMemo(
-    () => Math.min(VIEW_W / artwork.width, VIEW_H / artwork.height),
-    [artwork.width, artwork.height],
+    () => Math.min(vp.w / artwork.width, vp.h / artwork.height),
+    [vp.w, vp.h, artwork.width, artwork.height],
   );
   const scale = fitScale * cam.zoom;
   const effTool: BoardTool = space ? 'pipette' : tool;
@@ -104,20 +116,35 @@ export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; l
     if (t === 'brush' || t === 'bucket' || t === 'pipette') paint.setTool(t);
   };
 
-  // Centrage initial caméra + perso.
+  // Choisir une couleur (palette / pipette) bascule sur le pinceau : on évite la
+  // gymnastique « re-sélectionner l'outil » avant de peindre.
+  const pickColor = (c: string) => {
+    paint.setColor(c);
+    if (tool !== 'brush' && tool !== 'bucket') setTool('brush');
+  };
+
+  // Centrage initial du perso à chaque œuvre.
   useEffect(() => {
     setPlacement({
       x: Math.round((artwork.width - S) / 2),
       y: Math.round((artwork.height - S) / 2),
     });
-    setCam({
-      zoom: 1,
-      x: (VIEW_W - artwork.width * fitScale) / 2,
-      y: (VIEW_H - artwork.height * fitScale) / 2,
-    });
     setOthers({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artwork.id]);
+
+  // Caméra centrée tant qu'on n'a pas zoomé (suit aussi le redimensionnement).
+  useEffect(() => {
+    setCam((c) =>
+      c.zoom === 1
+        ? {
+            zoom: 1,
+            x: (vp.w - artwork.width * fitScale) / 2,
+            y: (vp.h - artwork.height * fitScale) / 2,
+          }
+        : c,
+    );
+  }, [artwork.id, vp.w, vp.h, fitScale, artwork.width, artwork.height]);
 
   // Redessine le perso.
   useEffect(() => {
@@ -195,8 +222,8 @@ export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; l
       else if (k === 'e' || k === 'p') setTool('pipette');
       else if (k === 'r') rotate(1);
       else if (k >= '1' && k <= '5') paint.setBrush(SIZES[+k - 1]!);
-      else if (k === '+' || k === '=') zoomBy(1.3, VIEW_W / 2, VIEW_H / 2);
-      else if (k === '-') zoomBy(1 / 1.3, VIEW_W / 2, VIEW_H / 2);
+      else if (k === '+' || k === '=') zoomBy(1.3, vp.w / 2, vp.h / 2);
+      else if (k === '-') zoomBy(1 / 1.3, vp.w / 2, vp.h / 2);
     };
     const up = (e: KeyboardEvent) => {
       if (e.code === 'Space') setSpace(false);
@@ -208,7 +235,7 @@ export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; l
       window.removeEventListener('keyup', up);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locked, tool, rotation, x, y]);
+  }, [locked, tool, rotation, x, y, vp.w, vp.h]);
 
   const capture = (e: React.PointerEvent) => {
     try {
@@ -240,6 +267,16 @@ export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; l
     });
   };
 
+  // Présence initiale dès que le perso est prêt : le serveur connaît ainsi un
+  // état à verrouiller en fin de chrono même si le joueur ne touche à rien.
+  const announced = useRef<string | null>(null);
+  useEffect(() => {
+    if (!live || !pixels || announced.current === artwork.id) return;
+    announced.current = artwork.id;
+    emitPresence(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, pixels, artwork.id]);
+
   const charPixel = (e: { clientX: number; clientY: number }) => {
     const rect = charRef.current!.getBoundingClientRect();
     const cx = Math.floor(((e.clientX - rect.left) / rect.width) * S);
@@ -257,7 +294,8 @@ export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; l
     const py = Math.max(0, Math.min(c.height - 1, Math.round(ay)));
     const d = c.getContext('2d')!.getImageData(px, py, 1, 1).data;
     paint.setColor(rgbToHex(d[0]!, d[1]!, d[2]!));
-    if (tool === 'pipette') setTool('brush');
+    // Couleur capturée → pinceau prêt à peindre, même si la pipette venait d'Espace.
+    setTool('brush');
   };
 
   const clampX = (v: number) => Math.max(0, Math.min(artwork.width - S, v));
@@ -379,85 +417,88 @@ export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; l
   const charDisp = S * scale;
 
   return (
-    <div className="space-y-3">
-      <div
-        ref={viewportRef}
-        onPointerDown={onBgDown}
-        onPointerMove={onMove}
-        onPointerUp={onUp}
-        onWheel={onWheel}
-        className="relative overflow-hidden rounded-xl2 border border-line bg-night-800 shadow-frame"
-        style={{ width: VIEW_W, height: VIEW_H, touchAction: 'none', cursor }}
-      >
-        {/* Couche œuvre */}
+    <div className="flex h-full min-h-0 w-full">
+      {/* Tableau : toute la place disponible */}
+      <div ref={wrapRef} className="relative min-w-0 flex-1 overflow-hidden bg-night-800">
         <div
-          className="absolute left-0 top-0 origin-top-left"
-          style={{
-            width: artwork.width * fitScale,
-            height: artwork.height * fitScale,
-            transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.zoom})`,
-            background: artworkBg(artwork),
-          }}
+          ref={viewportRef}
+          onPointerDown={onBgDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onWheel={onWheel}
+          className="absolute inset-0"
+          style={{ touchAction: 'none', cursor }}
         >
-          {/* Autres cachés (présence) */}
-          {Object.entries(others).map(([id, o]) => (
-            <div
-              key={id}
-              className="pointer-events-none absolute opacity-70"
-              style={{
-                left: o.x * fitScale,
-                top: o.y * fitScale,
-                width: S * fitScale,
-                height: S * fitScale,
-              }}
-            >
-              <PixelSprite pixels={o.pixels} size={S * fitScale} rotation={o.rotation} />
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/50 px-1 text-[8px] text-white">
-                {o.pseudo}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Cadre zone peignable */}
-        <div
-          className="pointer-events-none absolute rounded-sm ring-2 ring-gold/70"
-          style={{
-            left: cam.x + x * scale,
-            top: cam.y + y * scale,
-            width: charDisp,
-            height: charDisp,
-          }}
-        />
-        {/* Canvas du perso (dans l'espace écran, aligné à la caméra) */}
-        <canvas
-          ref={charRef}
-          width={S}
-          height={S}
-          onPointerDown={onCharDown}
-          className="absolute touch-none"
-          style={{
-            left: cam.x + x * scale,
-            top: cam.y + y * scale,
-            width: charDisp,
-            height: charDisp,
-            imageRendering: 'pixelated',
-            transform: `rotate(${rotation}deg)`,
-            cursor,
-          }}
-        />
-
-        {/* HUD zoom */}
-        <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg bg-surface/90 p-1 shadow-soft">
-          <HudBtn onClick={() => zoomBy(1 / 1.3, VIEW_W / 2, VIEW_H / 2)}>−</HudBtn>
-          <span className="w-9 text-center font-mono text-xs">{cam.zoom.toFixed(1)}×</span>
-          <HudBtn onClick={() => zoomBy(1.3, VIEW_W / 2, VIEW_H / 2)}>+</HudBtn>
-        </div>
-        {space && (
-          <div className="pointer-events-none absolute left-2 top-2 rounded-md bg-night/80 px-2 py-1 text-xs text-white">
-            💧 Pipette (Espace) — clique sur le tableau
+          {/* Couche œuvre */}
+          <div
+            className="absolute left-0 top-0 origin-top-left"
+            style={{
+              width: artwork.width * fitScale,
+              height: artwork.height * fitScale,
+              transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.zoom})`,
+              background: artworkBg(artwork),
+            }}
+          >
+            {/* Autres cachés (présence) */}
+            {Object.entries(others).map(([id, o]) => (
+              <div
+                key={id}
+                className="pointer-events-none absolute opacity-70"
+                style={{
+                  left: o.x * fitScale,
+                  top: o.y * fitScale,
+                  width: S * fitScale,
+                  height: S * fitScale,
+                }}
+              >
+                <PixelSprite pixels={o.pixels} size={S * fitScale} rotation={o.rotation} />
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/50 px-1 text-[8px] text-white">
+                  {o.pseudo}
+                </span>
+              </div>
+            ))}
           </div>
-        )}
+
+          {/* Cadre zone peignable */}
+          <div
+            className="pointer-events-none absolute rounded-sm ring-2 ring-gold/70"
+            style={{
+              left: cam.x + x * scale,
+              top: cam.y + y * scale,
+              width: charDisp,
+              height: charDisp,
+            }}
+          />
+          {/* Canvas du perso (dans l'espace écran, aligné à la caméra) */}
+          <canvas
+            ref={charRef}
+            width={S}
+            height={S}
+            onPointerDown={onCharDown}
+            className="absolute touch-none"
+            style={{
+              left: cam.x + x * scale,
+              top: cam.y + y * scale,
+              width: charDisp,
+              height: charDisp,
+              imageRendering: 'pixelated',
+              transform: `rotate(${rotation}deg)`,
+              cursor,
+            }}
+          />
+
+          {/* HUD zoom */}
+          <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg bg-surface/90 p-1 shadow-soft">
+            <HudBtn onClick={() => zoomBy(1 / 1.3, vp.w / 2, vp.h / 2)}>−</HudBtn>
+            <span className="w-9 text-center font-mono text-xs">{cam.zoom.toFixed(1)}×</span>
+            <HudBtn onClick={() => zoomBy(1.3, vp.w / 2, vp.h / 2)}>+</HudBtn>
+          </div>
+          {space && (
+            <div className="pointer-events-none absolute left-3 top-3 rounded-md bg-night/80 px-2 py-1 text-xs text-white">
+              💧 Pipette (Espace) — clique sur le tableau
+            </div>
+          )}
+        </div>
       </div>
 
       <Toolbar
@@ -465,7 +506,7 @@ export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; l
         setTool={setTool}
         rotate={rotate}
         color={paint.color}
-        setColor={paint.setColor}
+        setColor={pickColor}
         brush={paint.brush}
         setBrush={paint.setBrush}
         artColors={artColors}
@@ -502,26 +543,32 @@ const TOOLS: { id: BoardTool; icon: string; label: string; key: string }[] = [
   { id: 'pipette', icon: '💧', label: 'Pipette', key: 'E / Espace' },
 ];
 
+/** Panneau d'outils vertical (colonne de droite du plateau plein écran). */
 function Toolbar(p: ToolbarProps) {
   return (
-    <div className="space-y-4 rounded-xl2 border border-line bg-surface p-4 shadow-soft">
-      <div className="flex flex-wrap items-center gap-2">
-        {TOOLS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => p.setTool(t.id)}
-            title={`${t.label} (${t.key})`}
-            className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium transition ${
-              p.tool === t.id
-                ? 'border-accent bg-accent text-white shadow-soft'
-                : 'border-line hover:border-muted/40'
-            }`}
-          >
-            <span aria-hidden>{t.icon}</span>
-            {t.label}
-          </button>
-        ))}
-        <span className="mx-1 h-6 w-px bg-line" />
+    <aside className="flex w-64 shrink-0 flex-col gap-4 overflow-y-auto border-l border-line bg-surface p-4">
+      <div>
+        <SectionTitle>Outils</SectionTitle>
+        <div className="grid grid-cols-2 gap-1.5">
+          {TOOLS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => p.setTool(t.id)}
+              title={`${t.label} (${t.key})`}
+              className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-sm font-medium transition ${
+                p.tool === t.id
+                  ? 'border-accent bg-accent text-white shadow-soft'
+                  : 'border-line hover:border-muted/40'
+              }`}
+            >
+              <span aria-hidden>{t.icon}</span>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
         <HudBtn onClick={() => p.rotate(-1)}>⟲</HudBtn>
         <HudBtn onClick={() => p.rotate(1)}>⟳</HudBtn>
         <span className="ml-auto flex items-center gap-2">
@@ -543,9 +590,7 @@ function Toolbar(p: ToolbarProps) {
 
       {p.artColors.length > 0 && (
         <div>
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gold">
-            🎨 Couleurs du tableau
-          </div>
+          <SectionTitle gold>🎨 Couleurs du tableau</SectionTitle>
           <div className="flex flex-wrap gap-1.5">
             {p.artColors.map((c, i) => (
               <Swatch
@@ -560,74 +605,81 @@ function Toolbar(p: ToolbarProps) {
         </div>
       )}
 
-      <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
-        <div>
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-            Palette
-          </div>
-          <div className="grid grid-cols-8 gap-1.5">
-            {BASE_PALETTE.map((c) => (
-              <Swatch
-                key={c}
-                color={c}
-                active={p.color.toLowerCase() === c.toLowerCase()}
-                ring="accent"
-                onClick={() => p.setColor(c)}
-              />
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-            Taille
-          </div>
-          <div className="flex items-center gap-1.5">
-            {SIZES.map((b, i) => (
-              <button
-                key={b}
-                onClick={() => p.setBrush(b)}
-                title={`${b} px (${i + 1})`}
-                className={`grid h-9 w-9 place-items-center rounded-xl border transition ${
-                  p.brush === b
-                    ? 'border-accent bg-accent-soft'
-                    : 'border-line hover:border-muted/40'
-                }`}
-              >
-                <span
-                  className="rounded-full bg-ink"
-                  style={{ width: `${4 + b * 2}px`, height: `${4 + b * 2}px` }}
-                />
-              </button>
-            ))}
-          </div>
+      <div>
+        <SectionTitle>Palette</SectionTitle>
+        <div className="grid grid-cols-6 gap-1.5">
+          {BASE_PALETTE.map((c) => (
+            <Swatch
+              key={c}
+              color={c}
+              active={p.color.toLowerCase() === c.toLowerCase()}
+              ring="accent"
+              onClick={() => p.setColor(c)}
+            />
+          ))}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3 text-sm">
+      <div>
+        <SectionTitle>Taille</SectionTitle>
+        <div className="flex items-center gap-1.5">
+          {SIZES.map((b, i) => (
+            <button
+              key={b}
+              onClick={() => p.setBrush(b)}
+              title={`${b} px (${i + 1})`}
+              className={`grid h-9 w-9 place-items-center rounded-xl border transition ${
+                p.brush === b ? 'border-accent bg-accent-soft' : 'border-line hover:border-muted/40'
+              }`}
+            >
+              <span
+                className="rounded-full bg-ink"
+                style={{ width: `${4 + b * 2}px`, height: `${4 + b * 2}px` }}
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 border-t border-line pt-3 text-sm">
         <button
           onClick={p.undo}
           disabled={!p.canUndo}
-          className="rounded-lg border border-line px-3 py-1.5 transition hover:border-muted/40 disabled:opacity-40"
+          className="rounded-lg border border-line px-2.5 py-1.5 transition hover:border-muted/40 disabled:opacity-40"
         >
           ↩ Annuler
         </button>
         <button
           onClick={p.redo}
           disabled={!p.canRedo}
-          className="rounded-lg border border-line px-3 py-1.5 transition hover:border-muted/40 disabled:opacity-40"
+          className="rounded-lg border border-line px-2.5 py-1.5 transition hover:border-muted/40 disabled:opacity-40"
         >
           ↪ Rétablir
         </button>
         <button
           onClick={p.clear}
-          className="rounded-lg border border-line px-3 py-1.5 text-red-600 transition hover:bg-red-50"
+          className="rounded-lg border border-line px-2.5 py-1.5 text-red-600 transition hover:bg-red-50"
         >
           Réinitialiser
         </button>
-        <span className="ml-auto hidden text-xs text-muted sm:block">
-          Raccourcis : Espace = pipette · B/G/E/V · 1-5 · R · molette = zoom
-        </span>
       </div>
+
+      <p className="mt-auto text-[11px] leading-relaxed text-muted">
+        Raccourcis : Espace = pipette · B/G/E/V = outils · 1-5 = taille · R = rotation · molette =
+        zoom
+      </p>
+    </aside>
+  );
+}
+
+function SectionTitle({ children, gold = false }: { children: React.ReactNode; gold?: boolean }) {
+  return (
+    <div
+      className={`mb-1.5 text-xs font-semibold uppercase tracking-wide ${
+        gold ? 'text-gold' : 'text-muted'
+      }`}
+    >
+      {children}
     </div>
   );
 }

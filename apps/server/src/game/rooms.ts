@@ -35,6 +35,8 @@ export interface ServerPlayer extends PublicPlayer {
   placement: CharacterPlacement | null;
   /** Pixels RGBA du personnage verrouillé (null tant que non verrouillé). */
   pixels: Uint8ClampedArray | null;
+  /** Dernier état peint connu (via la présence), pour le verrouillage auto en fin de camouflage. */
+  draftPixels: Uint8ClampedArray | null;
   /** Score de camouflage calculé au verrouillage (0-100), null sinon. */
   camouflageScore: number | null;
   /** (Chercheur) timestamp (ms epoch) avant lequel un nouveau clic est refusé. */

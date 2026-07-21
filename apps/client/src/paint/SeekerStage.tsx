@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   CHARACTER_SIZE,
   EVENTS,
@@ -21,9 +21,9 @@ interface Camera {
 }
 
 /**
- * Plateau du chercheur (issue #13, refonte). Affiche l'œuvre en grand (responsive)
- * avec les personnages cachés camouflés dessus : au chercheur de les repérer et de
- * cliquer. Un raté impose un cooldown. Les trouvés sont surlignés.
+ * Plateau du chercheur, plein écran : l'œuvre remplit tout l'espace disponible
+ * avec les personnages cachés camouflés dessus ; au chercheur de les repérer et
+ * de cliquer. Un raté impose un cooldown. Les trouvés sont surlignés.
  */
 export function SeekerStage({
   artwork,
@@ -38,42 +38,50 @@ export function SeekerStage({
   const viewportRef = useRef<HTMLDivElement>(null);
   const targets = useGameStore((s) => s.seekerTargets);
 
-  const [availW, setAvailW] = useState(720);
+  const [vp, setVp] = useState({ w: 960, h: 640 });
   const [cam, setCam] = useState<Camera>({ zoom: 1, x: 0, y: 0 });
   const [foundIds, setFoundIds] = useState<Set<string>>(new Set());
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [flash, setFlash] = useState<{ ok: boolean; key: number } | null>(null);
 
-  // Dimensions du plateau : remplit la largeur dispo, borné en hauteur (~72% écran).
-  const ar = artwork.height / artwork.width;
-  const maxH = Math.min(typeof window !== 'undefined' ? window.innerHeight * 0.72 : 720, 820);
-  let boardW = Math.max(280, availW);
-  let boardH = boardW * ar;
-  if (boardH > maxH) {
-    boardH = maxH;
-    boardW = maxH / ar;
-  }
-  const fitScale = boardW / artwork.width;
-  const scale = fitScale * cam.zoom;
-
+  // Le plateau épouse son conteneur (plein écran, pas de scroll).
   useLayoutEffect(() => {
     const el = outerRef.current;
     if (!el) return;
-    const update = () => setAvailW(el.clientWidth);
+    const update = () => setVp({ w: el.clientWidth, h: el.clientHeight });
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  // Reset caméra + trouvailles à chaque œuvre (nouvelle manche).
+  const fitScale = useMemo(
+    () => Math.min(vp.w / artwork.width, vp.h / artwork.height),
+    [vp.w, vp.h, artwork.width, artwork.height],
+  );
+  const scale = fitScale * cam.zoom;
+
+  // Reset trouvailles à chaque œuvre (nouvelle manche).
   useEffect(() => {
-    setCam({ zoom: 1, x: 0, y: 0 });
     setFoundIds(new Set());
     setCooldownUntil(0);
     setFlash(null);
+    setCam({ zoom: 1, x: 0, y: 0 });
   }, [artwork.id]);
+
+  // Caméra centrée tant qu'on n'a pas zoomé (suit aussi le redimensionnement).
+  useEffect(() => {
+    setCam((c) =>
+      c.zoom === 1
+        ? {
+            zoom: 1,
+            x: (vp.w - artwork.width * fitScale) / 2,
+            y: (vp.h - artwork.height * fitScale) / 2,
+          }
+        : c,
+    );
+  }, [artwork.id, vp.w, vp.h, fitScale, artwork.width, artwork.height]);
 
   // Marque les cachés trouvés (diffusé à toute la salle).
   useEffect(() => {
@@ -159,90 +167,90 @@ export function SeekerStage({
   const shown = interactive ? targets : [];
 
   return (
-    <div ref={outerRef} className="w-full space-y-3">
-      <div className="flex items-center justify-between text-sm">
+    <div className="flex h-full min-h-0 w-full flex-col">
+      <div className="flex h-11 shrink-0 items-center justify-between border-b border-line bg-surface px-4 text-sm">
         <span className="font-semibold">
-          {interactive ? '🔍 Repère et clique les personnages cachés' : 'Observe l’œuvre'}
+          {interactive
+            ? '🔍 Repère les personnages fondus dans la toile et clique dessus (raté = 3 s d’attente)'
+            : '👀 Observe l’œuvre et mémorise les cachettes possibles'}
         </span>
-        <span className="font-mono text-muted">
-          Trouvés {foundIds.size}/{totalHiders}
-        </span>
+        {interactive && (
+          <span className="font-mono text-muted">
+            Trouvés {foundIds.size}/{totalHiders}
+          </span>
+        )}
       </div>
 
-      <div
-        ref={viewportRef}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onWheel={onWheel}
-        className="relative mx-auto overflow-hidden rounded-xl2 border border-line bg-night-800 shadow-frame"
-        style={{ width: boardW, height: boardH, touchAction: 'none', cursor }}
-      >
+      <div ref={outerRef} className="relative min-h-0 flex-1 overflow-hidden bg-night-800">
         <div
-          className="absolute left-0 top-0 origin-top-left"
-          style={{
-            width: artwork.width * fitScale,
-            height: artwork.height * fitScale,
-            transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.zoom})`,
-            background: artworkBg(artwork),
-          }}
+          ref={viewportRef}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onWheel={onWheel}
+          className="absolute inset-0"
+          style={{ touchAction: 'none', cursor }}
         >
-          {/* Cachés camouflés (le chercheur doit les repérer) */}
-          {shown.map((t) => {
-            const isFound = foundIds.has(t.id);
-            return (
-              <div
-                key={t.id}
-                className={`pointer-events-none absolute ${isFound ? 'rounded-sm ring-2 ring-emerald-400' : ''}`}
-                style={{
-                  left: t.x * fitScale,
-                  top: t.y * fitScale,
-                  width: S * fitScale,
-                  height: S * fitScale,
-                }}
-              >
-                <PixelSprite pixels={t.pixels} size={S * fitScale} rotation={t.rotation} />
-                {isFound && (
-                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] text-white">
-                    ✓
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {flash && (
           <div
-            key={flash.key}
-            className={`animate-pop pointer-events-none absolute left-3 top-3 rounded-lg px-3 py-1.5 text-sm font-semibold text-white ${
-              flash.ok ? 'bg-emerald-500' : 'bg-red-500'
-            }`}
+            className="absolute left-0 top-0 origin-top-left"
+            style={{
+              width: artwork.width * fitScale,
+              height: artwork.height * fitScale,
+              transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.zoom})`,
+              background: artworkBg(artwork),
+            }}
           >
-            {flash.ok ? 'Trouvé ! 🎯' : 'Raté…'}
+            {/* Cachés camouflés (le chercheur doit les repérer) */}
+            {shown.map((t) => {
+              const isFound = foundIds.has(t.id);
+              return (
+                <div
+                  key={t.id}
+                  className={`pointer-events-none absolute ${isFound ? 'rounded-sm ring-2 ring-emerald-400' : ''}`}
+                  style={{
+                    left: t.x * fitScale,
+                    top: t.y * fitScale,
+                    width: S * fitScale,
+                    height: S * fitScale,
+                  }}
+                >
+                  <PixelSprite pixels={t.pixels} size={S * fitScale} rotation={t.rotation} />
+                  {isFound && (
+                    <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] text-white">
+                      ✓
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        )}
 
-        {onCooldown && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
-            <span className="rounded-full bg-red-500/90 px-4 py-1 font-mono text-sm text-white">
-              ⏳ {(cooldownLeft / 1000).toFixed(1)}s
-            </span>
+          {flash && (
+            <div
+              key={flash.key}
+              className={`animate-pop pointer-events-none absolute left-3 top-3 rounded-lg px-3 py-1.5 text-sm font-semibold text-white ${
+                flash.ok ? 'bg-emerald-500' : 'bg-red-500'
+              }`}
+            >
+              {flash.ok ? 'Trouvé ! 🎯' : 'Raté…'}
+            </div>
+          )}
+
+          {onCooldown && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
+              <span className="rounded-full bg-red-500/90 px-4 py-1 font-mono text-sm text-white">
+                ⏳ {(cooldownLeft / 1000).toFixed(1)}s
+              </span>
+            </div>
+          )}
+
+          <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg bg-surface/90 p-1 shadow-soft">
+            <HudBtn onClick={() => zoomBy(1 / 1.3, vp.w / 2, vp.h / 2)}>−</HudBtn>
+            <span className="w-9 text-center font-mono text-xs">{cam.zoom.toFixed(1)}×</span>
+            <HudBtn onClick={() => zoomBy(1.3, vp.w / 2, vp.h / 2)}>+</HudBtn>
           </div>
-        )}
-
-        <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg bg-surface/90 p-1 shadow-soft">
-          <HudBtn onClick={() => zoomBy(1 / 1.3, boardW / 2, boardH / 2)}>−</HudBtn>
-          <span className="w-9 text-center font-mono text-xs">{cam.zoom.toFixed(1)}×</span>
-          <HudBtn onClick={() => zoomBy(1.3, boardW / 2, boardH / 2)}>+</HudBtn>
         </div>
       </div>
-
-      <p className="text-xs text-muted">
-        {interactive
-          ? 'Repère les personnages fondus dans la toile et clique dessus. Un raté impose 3s d’attente. Glisse pour te déplacer, molette/boutons pour zoomer.'
-          : 'Mémorise les cachettes possibles. La traque commence bientôt.'}
-      </p>
     </div>
   );
 }

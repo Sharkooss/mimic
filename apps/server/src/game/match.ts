@@ -12,6 +12,8 @@ import {
 import { clearRoomTimer, freshMatchStats, snapshot, type Room } from './rooms.js';
 import { pickArtworkSequence } from './artworks.js';
 import { persistMatch } from './persistence.js';
+import { scoreCamouflage } from './camouflage.js';
+import { sampleArtworkBackground } from './artworkPixels.js';
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -55,6 +57,7 @@ function beginRound(io: IO, room: Room): void {
     p.foundAtMs = null;
     p.placement = null;
     p.pixels = null;
+    p.draftPixels = null;
     p.camouflageScore = null;
     p.clickCooldownUntil = 0;
     p.role = p.id === room.seekerId ? 'seeker' : 'hider';
@@ -119,12 +122,30 @@ function setPhase(
   room.phase = phase;
   if (phase === 'seeking') {
     room.seekingStartedAt = Date.now();
+    autoLockHiders(room);
     sendSeekingTargets(io, room);
   }
   room.phaseEndsAt = Date.now() + durationSec * 1000;
   broadcast(io, room);
   io.to(room.code).emit(EVENTS.phaseChanged, phase, room.phaseEndsAt);
   room.timer = setTimeout(next, durationSec * 1000);
+}
+
+/**
+ * Verrouille automatiquement tous les cachés à la fin du camouflage : leur
+ * dernier état connu (position + peinture, relayé en continu par la présence)
+ * devient leur camouflage définitif, score compris. Personne ne disparaît de la
+ * traque faute d'avoir cliqué sur un bouton de validation.
+ */
+function autoLockHiders(room: Room): void {
+  for (const p of room.players.values()) {
+    if (p.role !== 'hider' || p.placement?.locked) continue;
+    if (!p.placement || !p.draftPixels) continue;
+    const background = sampleArtworkBackground(room.artwork, p.placement.x, p.placement.y);
+    p.camouflageScore = scoreCamouflage(p.draftPixels, background).score;
+    p.pixels = p.draftPixels;
+    p.placement = { ...p.placement, locked: true };
+  }
 }
 
 /**

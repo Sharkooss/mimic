@@ -37,7 +37,7 @@ export function PaintPage(): JSX.Element {
   }, []);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="mx-auto max-w-6xl space-y-5">
       <div>
         <h1 className="text-2xl font-bold">Atelier</h1>
         <p className="text-sm text-muted">
@@ -45,7 +45,10 @@ export function PaintPage(): JSX.Element {
           couleurs de l’œuvre.
         </p>
       </div>
-      <CamouflageBoard artwork={SAMPLE} />
+      {/* Le plateau remplit son conteneur : on lui donne une hauteur d'écran utile. */}
+      <div className="h-[72vh] overflow-hidden rounded-xl2 border border-line shadow-frame">
+        <CamouflageBoard artwork={SAMPLE} />
+      </div>
     </div>
   );
 }
