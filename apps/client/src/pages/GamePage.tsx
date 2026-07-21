@@ -168,8 +168,9 @@ function GameSidebar({
 
       {camo && !isSeeker && (
         <p className="rounded-xl border border-dashed border-line p-3 text-xs leading-relaxed text-muted">
-          ⏱ Ton camouflage est <span className="font-semibold text-ink">validé automatiquement</span>{' '}
-          à la fin du chrono — rien à confirmer.
+          ⏱ Ton camouflage est{' '}
+          <span className="font-semibold text-ink">validé automatiquement</span> à la fin du chrono
+          — rien à confirmer.
         </p>
       )}
 
