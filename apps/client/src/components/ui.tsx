@@ -157,29 +157,57 @@ export interface GalleryItem {
   author: string;
 }
 
-/** Bande d'œuvres encadrées, défilement continu (accroche visuelle du hero). */
-export function GalleryStrip({ items }: { items: GalleryItem[] }): JSX.Element {
+/**
+ * Bande d'œuvres encadrées, défilement continu (accroche visuelle du hero).
+ * `reverse` inverse le sens, `size` change l'échelle des vignettes, `caption`
+ * affiche/masque l'auteur. Réutilisable en plusieurs rangées pour un « mur d'art ».
+ */
+export function GalleryStrip({
+  items,
+  reverse = false,
+  size = 'sm',
+  caption = true,
+  durationSec = 40,
+}: {
+  items: GalleryItem[];
+  reverse?: boolean;
+  size?: 'sm' | 'lg';
+  caption?: boolean;
+  durationSec?: number;
+}): JSX.Element {
   const loop = items.length ? [...items, ...items] : [];
+  const dims =
+    size === 'lg'
+      ? { fig: 'w-52 sm:w-64', img: 'h-36 sm:h-44' }
+      : { fig: 'w-40 sm:w-52', img: 'h-28 sm:h-36' };
   return (
     <div className="relative overflow-hidden">
-      <div className="flex w-max gap-4 animate-marquee">
+      <div
+        className="flex w-max gap-4 animate-marquee"
+        style={{
+          animationDuration: `${durationSec}s`,
+          animationDirection: reverse ? 'reverse' : 'normal',
+        }}
+      >
         {loop.map((a, i) => (
           <figure
             key={i}
-            className="group w-40 shrink-0 sm:w-52"
+            className={`group ${dims.fig} shrink-0`}
             title={`${a.title} — ${a.author}`}
           >
-            <div className="overflow-hidden rounded-lg bg-night-800 p-1.5 shadow-frame ring-1 ring-white/10">
+            <div className="overflow-hidden rounded-lg bg-night-800 p-1.5 shadow-frame ring-1 ring-white/10 transition duration-500 group-hover:ring-gold/40">
               <img
                 src={a.imageUrl}
                 alt={a.title}
                 loading="lazy"
-                className="h-28 w-full rounded object-cover transition duration-500 group-hover:scale-[1.04] sm:h-36"
+                className={`${dims.img} w-full rounded object-cover transition duration-500 group-hover:scale-[1.05]`}
               />
             </div>
-            <figcaption className="mt-1.5 truncate px-1 text-[11px] text-white/50">
-              {a.author}
-            </figcaption>
+            {caption && (
+              <figcaption className="mt-1.5 truncate px-1 text-[11px] text-white/50">
+                {a.author}
+              </figcaption>
+            )}
           </figure>
         ))}
       </div>

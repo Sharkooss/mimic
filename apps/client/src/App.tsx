@@ -38,6 +38,19 @@ export default function App(): JSX.Element {
 
   return (
     <div className="min-h-screen">
+      {/* Fond décoratif : aurores colorées diffuses qui flottent doucement. */}
+      <div className="app-aurora" aria-hidden>
+        <span className="-left-40 -top-40 h-[34rem] w-[34rem] animate-float bg-accent/25" />
+        <span
+          className="right-[-8rem] top-10 h-[28rem] w-[28rem] animate-float bg-gold/20"
+          style={{ animationDelay: '-2s', animationDuration: '8s' }}
+        />
+        <span
+          className="bottom-[-10rem] left-1/3 h-[30rem] w-[30rem] animate-float bg-accent/15"
+          style={{ animationDelay: '-4s', animationDuration: '9s' }}
+        />
+      </div>
+
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-line/70 bg-canvas/80 px-6 py-3 backdrop-blur-md">
         <Link to="/" className="transition hover:opacity-80">
           <Wordmark />

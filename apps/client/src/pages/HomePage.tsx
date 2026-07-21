@@ -68,49 +68,43 @@ export function HomePage(): JSX.Element {
 
   return (
     <div className="grid h-[calc(100dvh-8rem)] min-h-[540px] animate-fade-in grid-cols-1 gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-      {/* ───────── HÉRO (gauche) ───────── */}
+      {/* ───────── HÉRO (gauche) : mur d'œuvres en vedette ───────── */}
       <section className="relative flex flex-col overflow-hidden rounded-3xl bg-night bg-night-radial text-white shadow-glow">
         {/* halo décoratif */}
         <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-accent/25 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -left-10 h-56 w-56 rounded-full bg-gold/15 blur-3xl" />
 
-        <div className="relative flex flex-1 flex-col justify-center px-8 py-8 sm:px-12">
-          <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/70 backdrop-blur">
-              🎨 Cache-cache dans les chefs-d’œuvre
-            </span>
-          </div>
-          <h1 className="mt-5 font-display text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
-            Fondez-vous dans
-            <br />
+        {/* Bloc titre (compact) */}
+        <div className="relative shrink-0 px-8 pt-8 sm:px-12">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/70 backdrop-blur">
+            🎨 Cache-cache dans les chefs-d’œuvre
+          </span>
+          <h1 className="mt-4 font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-[3.4rem]">
+            Fondez-vous dans{' '}
             <span className="animate-sheen bg-[linear-gradient(110deg,#b7861f_30%,#f7e6b0_50%,#b7861f_70%)] bg-[length:250%_100%] bg-clip-text text-transparent">
               le tableau.
             </span>
           </h1>
-          <p className="mt-4 max-w-md text-sm leading-relaxed text-white/60 sm:text-base">
-            Peignez votre personnage, dissimulez-le dans une œuvre de maître, puis traquez les
-            autres joueurs cachés dans la toile.
-          </p>
-
-          {/* Mini-étapes */}
-          <div className="mt-7 flex flex-wrap gap-x-6 gap-y-2">
+          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
             {STEPS.map((s, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm text-white/70">
+              <div key={i} className="flex items-center gap-2 text-sm text-white/75">
                 <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/10 text-base">
                   {s.icon}
                 </span>
-                <span>
-                  <span className="font-semibold text-white/90">{s.title}</span>
-                </span>
+                <span className="font-semibold text-white/90">{s.title}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Vitrine d'œuvres en bas du héro */}
+        {/* MUR D'ŒUVRES — élément central : 2 rangées qui défilent en sens opposés */}
         {gallery.length > 0 && (
-          <div className="relative border-t border-white/5 py-5">
-            <GalleryStrip items={gallery} />
+          <div className="relative mt-6 flex flex-1 flex-col justify-center gap-4 overflow-hidden py-2">
+            <GalleryStrip items={gallery} size="lg" durationSec={55} caption={false} />
+            <GalleryStrip items={[...gallery].reverse()} size="lg" durationSec={48} reverse />
+            {/* fondus haut/bas pour fondre le mur dans le héro */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-night to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-night to-transparent" />
           </div>
         )}
       </section>
