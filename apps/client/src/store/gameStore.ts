@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { RoomSnapshot, RoundResults } from '@mimic/shared';
+import type { RoomSnapshot, RoundResults, SeekerTarget } from '@mimic/shared';
 
 interface GameState {
   connected: boolean;
@@ -7,11 +7,14 @@ interface GameState {
   playerId: string | null;
   room: RoomSnapshot | null;
   results: RoundResults | null;
+  /** Cachés camouflés à afficher au chercheur (reçus au début de la recherche). */
+  seekerTargets: SeekerTarget[];
   toast: string | null;
   setConnected: (v: boolean) => void;
   setPlayerId: (id: string) => void;
   setRoom: (room: RoomSnapshot | null) => void;
   setResults: (r: RoundResults | null) => void;
+  setSeekerTargets: (t: SeekerTarget[]) => void;
   setToast: (msg: string | null) => void;
 }
 
@@ -21,10 +24,12 @@ export const useGameStore = create<GameState>((set) => ({
   playerId: null,
   room: null,
   results: null,
+  seekerTargets: [],
   toast: null,
   setConnected: (connected) => set({ connected }),
   setPlayerId: (playerId) => set({ playerId }),
   setRoom: (room) => set({ room }),
   setResults: (results) => set({ results }),
+  setSeekerTargets: (seekerTargets) => set({ seekerTargets }),
   setToast: (toast) => set({ toast }),
 }));

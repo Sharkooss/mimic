@@ -74,7 +74,7 @@ export function HomePage(): JSX.Element {
   };
 
   return (
-    <div className="animate-fade-in space-y-8">
+    <div className="mx-auto max-w-4xl animate-fade-in space-y-8">
       {/* HERO */}
       <section className="relative overflow-hidden rounded-3xl bg-night bg-night-radial text-white shadow-glow">
         <div className="px-6 pb-6 pt-12 text-center sm:px-10">

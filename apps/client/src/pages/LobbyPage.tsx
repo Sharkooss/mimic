@@ -48,7 +48,7 @@ export function LobbyPage(): JSX.Element {
   };
 
   return (
-    <div className="animate-fade-in space-y-7">
+    <div className="mx-auto max-w-2xl animate-fade-in space-y-7">
       <Card className="flex items-center justify-between p-5">
         <div>
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-muted">

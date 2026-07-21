@@ -33,7 +33,7 @@ import {
   type Room,
   type ServerPlayer,
 } from './game/rooms.js';
-import { maybeEndSeeking, startMatch } from './game/match.js';
+import { maybeEndSeeking, sendSeekingTargets, startMatch } from './game/match.js';
 
 /** Délai de grâce (ms) avant de retirer un joueur déconnecté (fenêtre de reconnexion). */
 const RECONNECT_GRACE_MS = 30_000;
@@ -351,6 +351,8 @@ function reattach(
   socket.join(room.code);
   socket.emit(EVENTS.session, { playerId: player.id });
   socket.emit(EVENTS.roomSnapshot, snapshot(room));
+  // Le chercheur qui se reconnecte en pleine recherche doit récupérer les cibles.
+  if (room.phase === 'seeking' && room.seekerId === player.id) sendSeekingTargets(io, room);
   broadcastSnapshot(io, room);
 }
 

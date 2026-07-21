@@ -37,7 +37,7 @@ export function PaintPage(): JSX.Element {
   }, []);
 
   return (
-    <div className="space-y-5">
+    <div className="mx-auto max-w-5xl space-y-5">
       <div>
         <h1 className="text-2xl font-bold">Atelier</h1>
         <p className="text-sm text-muted">

@@ -42,6 +42,9 @@ b.on('player:found', (d) => (foundEvent = d));
 let roundResults = null;
 a.on('round:results', (d) => (roundResults = d));
 b.on('round:results', (d) => (roundResults = d));
+let targets = null;
+a.on('seeking:targets', (t) => (targets = t));
+b.on('seeking:targets', (t) => (targets = t));
 
 async function onCamouflage(snap) {
   if (didLock) return;
@@ -63,6 +66,19 @@ async function onCamouflage(snap) {
 async function onSeeking() {
   if (didSeek) return;
   didSeek = true;
+
+  // Le chercheur doit RECEVOIR les cachés camouflés à afficher (sinon injouable).
+  await new Promise((r) => setTimeout(r, 300));
+  if (!targets || targets.length !== 1) fail(`seeking:targets attendu (1 caché), reçu ${JSON.stringify(targets)}`);
+  const t = targets[0];
+  if (t.id !== hiderId) fail('la cible ne correspond pas au caché');
+  if (!Array.isArray(t.pixels) || t.pixels.length !== S * S * 4) fail('cible: pixels manquants');
+  if (t.x !== placement.x || t.y !== placement.y) fail('cible: position incorrecte');
+  ok(`chercheur reçoit la cible camouflée (id, position ${t.x},${t.y}, pixels) — repérable`);
+  // Le chercheur clique la position REÇUE (comme s'il l'avait repérée).
+  placement.cx = t.x + S / 2;
+  placement.cy = t.y + S / 2;
+
   const miss = await emit(seekerSock, 'seeker:click', { x: 4, y: 4 });
   if (!miss.ok) fail(`ack raté: ${miss.error}`);
   if (miss.hit !== false) fail('un clic loin de la cible devrait rater');

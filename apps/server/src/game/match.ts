@@ -117,11 +117,35 @@ function setPhase(
 ): void {
   clearRoomTimer(room);
   room.phase = phase;
-  if (phase === 'seeking') room.seekingStartedAt = Date.now();
+  if (phase === 'seeking') {
+    room.seekingStartedAt = Date.now();
+    sendSeekingTargets(io, room);
+  }
   room.phaseEndsAt = Date.now() + durationSec * 1000;
   broadcast(io, room);
   io.to(room.code).emit(EVENTS.phaseChanged, phase, room.phaseEndsAt);
   room.timer = setTimeout(next, durationSec * 1000);
+}
+
+/**
+ * Envoie au chercheur les cachés (camouflés) à afficher sur l'œuvre. Réservé au
+ * chercheur : c'est le jeu (il doit repérer les persos peints), pas une fuite de
+ * marqueur. Sans pseudo. Appelé au début de la recherche et à la reconnexion.
+ */
+export function sendSeekingTargets(io: IO, room: Room): void {
+  if (room.phase !== 'seeking' || !room.seekerId) return;
+  const seeker = room.players.get(room.seekerId);
+  if (!seeker?.socketId) return;
+  const targets = [...room.players.values()]
+    .filter((p) => p.role === 'hider' && p.placement?.locked && p.pixels)
+    .map((p) => ({
+      id: p.id,
+      x: p.placement!.x,
+      y: p.placement!.y,
+      rotation: p.placement!.rotation,
+      pixels: Array.from(p.pixels!),
+    }));
+  io.to(seeker.socketId).emit(EVENTS.seekingTargets, targets);
 }
 
 /**

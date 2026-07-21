@@ -124,6 +124,15 @@ export interface ProgressUpdate {
   leveledUp: boolean;
 }
 
+/** Un caché camouflé, envoyé au chercheur pour l'afficher sur l'œuvre (sans pseudo). */
+export interface SeekerTarget {
+  id: string;
+  x: number;
+  y: number;
+  rotation: CharacterRotation;
+  pixels: number[];
+}
+
 /** Événements émis par le serveur vers le client. */
 export interface ServerToClientEvents {
   /** Id public du joueur pour ce socket (à la connexion/reconnexion). */
@@ -132,6 +141,8 @@ export interface ServerToClientEvents {
   progress: (data: ProgressUpdate) => void;
   /** Liste des salons publics (poussée aux clients qui parcourent le lobby). */
   'rooms:public': (rooms: RoomListing[]) => void;
+  /** Personnages cachés (camouflés) envoyés au chercheur au début de la recherche. */
+  'seeking:targets': (targets: SeekerTarget[]) => void;
   /** Présence d'un autre caché pendant le camouflage (position + apparence). */
   presence: (data: {
     playerId: string;
@@ -187,6 +198,7 @@ export const EVENTS = {
   characterMove: 'character:move',
   presenceUpdate: 'presence:update',
   presence: 'presence',
+  seekingTargets: 'seeking:targets',
   characterLock: 'character:lock',
   seekerClick: 'seeker:click',
   phaseChanged: 'phase:changed',
