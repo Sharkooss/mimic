@@ -3,25 +3,37 @@
  * Source unique de vérité : ne jamais dupliquer ces valeurs ailleurs.
  */
 
-/** Résolution (px) du personnage joueur. Fixe : la silhouette ne change pas. */
-export const CHARACTER_SIZE = 64;
+/** Résolution (px) du personnage joueur. Fixe : la silhouette ne change pas.
+ * Plus la valeur est haute, plus la peinture est détaillée (au prix de la bande
+ * passante de présence : l'empreinte fait CHARACTER_SIZE²·4 octets). */
+export const CHARACTER_SIZE = 96;
 
 /** Nombre de rotations autorisées (par pas de 90°). */
 export const CHARACTER_ROTATIONS = [0, 90, 180, 270] as const;
 export type CharacterRotation = (typeof CHARACTER_ROTATIONS)[number];
 
-/** Durées de phase par défaut (secondes). Surchargées par mode de jeu. */
+/** Durées de phase par défaut (secondes). Surchargées par les réglages de salon. */
 export const PHASE_DURATIONS = {
   camouflage: 40,
   seeking: 90,
   results: 12,
 } as const;
 
+/** Bornes (secondes) que l'hôte peut choisir pour chaque phase réglable. */
+export const PHASE_BOUNDS = {
+  camouflage: { min: 15, max: 120 },
+  seeking: { min: 30, max: 240 },
+} as const;
+
 /** Cooldown (ms) après un clic raté du chercheur, anti-spam. */
 export const WRONG_CLICK_COOLDOWN_MS = 3000;
 
-/** Rayon (px, dans l'espace du tableau) autour du centre d'un joueur pour valider un clic. */
-export const HIT_RADIUS = CHARACTER_SIZE / 2;
+/**
+ * Tolérance (px, espace tableau) autour de la silhouette peinte pour valider un
+ * clic. Le clic doit tomber sur un pixel opaque du personnage (hitbox au pixel
+ * près), à cette marge près — plus de « touché de loin » sur la boîte englobante.
+ */
+export const HIT_TOLERANCE = 3;
 
 /** Barème de points. */
 export const SCORING = {

@@ -4,6 +4,7 @@ import {
   CHARACTER_SIZE,
   GAME_MODES,
   LOBBY,
+  PHASE_BOUNDS,
   ROOM_VISIBILITIES,
 } from './constants.js';
 import type { CharacterRotation, GameMode } from './constants.js';
@@ -52,6 +53,32 @@ export const seekerClickSchema = z.object({
 
 export const setModeSchema = z.object({ mode: z.enum(GAME_MODES) });
 
+/** Réglages de durées (hôte, lobby uniquement). Champs optionnels : mise à jour partielle. */
+export const setSettingsSchema = z
+  .object({
+    camouflageSec: z
+      .number()
+      .int()
+      .min(PHASE_BOUNDS.camouflage.min)
+      .max(PHASE_BOUNDS.camouflage.max)
+      .optional(),
+    seekingSec: z
+      .number()
+      .int()
+      .min(PHASE_BOUNDS.seeking.min)
+      .max(PHASE_BOUNDS.seeking.max)
+      .optional(),
+  })
+  .refine((d) => d.camouflageSec !== undefined || d.seekingSec !== undefined, {
+    message: 'Aucun réglage fourni.',
+  });
+
+/** Position du curseur du chercheur (coordonnées tableau), diffusée en temps réel. */
+export const seekerCursorSchema = z.object({
+  x: z.number().finite(),
+  y: z.number().finite(),
+});
+
 export const presenceUpdateSchema = z.object({
   x: z.number().finite(),
   y: z.number().finite(),
@@ -69,6 +96,8 @@ export type JoinRoomPayload = z.infer<typeof joinRoomSchema>;
 export type PlacementPayload = z.infer<typeof placementSchema>;
 export type LockCharacterPayload = z.infer<typeof lockCharacterSchema>;
 export type SeekerClickPayload = z.infer<typeof seekerClickSchema>;
+export type SetSettingsPayload = z.infer<typeof setSettingsSchema>;
+export type SeekerCursorPayload = z.infer<typeof seekerCursorSchema>;
 
 /* -------------------------------------------------------------------------- */
 /*  Contrats d'événements Socket.IO                                           */
@@ -83,6 +112,7 @@ export interface ClientToServerEvents {
   'room:join': (payload: JoinRoomPayload, ack: (res: AckResult<{ code: string }>) => void) => void;
   'room:leave': () => void;
   'room:set-mode': (payload: { mode: GameMode }, ack: (res: AckResult) => void) => void;
+  'room:set-settings': (payload: SetSettingsPayload, ack: (res: AckResult) => void) => void;
   'room:start': (ack: (res: AckResult) => void) => void;
   /** S'abonner à la liste des salons publics (navigateur de parties). */
   'lobby:watch': (ack: (res: AckResult<{ rooms: RoomListing[] }>) => void) => void;
@@ -103,6 +133,8 @@ export interface ClientToServerEvents {
     payload: SeekerClickPayload,
     ack: (res: AckResult<{ hit: boolean; playerId: string | null }>) => void,
   ) => void;
+  /** Position du curseur du chercheur pendant la traque (relayée aux autres joueurs). */
+  'seeker:cursor': (payload: SeekerCursorPayload) => void;
 }
 
 /** Révélation d'un caché trouvé : diffusée à toute la salle pour l'afficher à sa cachette. */
@@ -154,6 +186,8 @@ export interface ServerToClientEvents {
   }) => void;
   'room:snapshot': (snapshot: RoomSnapshot) => void;
   'phase:changed': (phase: RoomSnapshot['phase'], phaseEndsAt: number | null) => void;
+  /** Curseur du chercheur (coordonnées tableau) diffusé aux autres joueurs pendant la traque. */
+  'seeker:cursor': (data: { x: number; y: number }) => void;
   'player:found': (data: PlayerFoundReveal) => void;
   'round:results': (data: RoundResults) => void;
   'error:toast': (message: string) => void;
@@ -188,6 +222,7 @@ export const EVENTS = {
   roomJoin: 'room:join',
   roomLeave: 'room:leave',
   roomSetMode: 'room:set-mode',
+  roomSetSettings: 'room:set-settings',
   roomStart: 'room:start',
   lobbyWatch: 'lobby:watch',
   lobbyUnwatch: 'lobby:unwatch',
@@ -201,6 +236,7 @@ export const EVENTS = {
   seekingTargets: 'seeking:targets',
   characterLock: 'character:lock',
   seekerClick: 'seeker:click',
+  seekerCursor: 'seeker:cursor',
   phaseChanged: 'phase:changed',
   playerFound: 'player:found',
   roundResults: 'round:results',

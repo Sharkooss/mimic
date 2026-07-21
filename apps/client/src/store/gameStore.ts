@@ -9,12 +9,15 @@ interface GameState {
   results: RoundResults | null;
   /** Cachés camouflés à afficher au chercheur (reçus au début de la recherche). */
   seekerTargets: SeekerTarget[];
+  /** Curseur du chercheur (coords tableau) pendant la traque, pour l'afficher aux autres. */
+  seekerCursor: { x: number; y: number } | null;
   toast: string | null;
   setConnected: (v: boolean) => void;
   setPlayerId: (id: string) => void;
   setRoom: (room: RoomSnapshot | null) => void;
   setResults: (r: RoundResults | null) => void;
   setSeekerTargets: (t: SeekerTarget[]) => void;
+  setSeekerCursor: (c: { x: number; y: number } | null) => void;
   setToast: (msg: string | null) => void;
 }
 
@@ -25,11 +28,13 @@ export const useGameStore = create<GameState>((set) => ({
   room: null,
   results: null,
   seekerTargets: [],
+  seekerCursor: null,
   toast: null,
   setConnected: (connected) => set({ connected }),
   setPlayerId: (playerId) => set({ playerId }),
   setRoom: (room) => set({ room }),
   setResults: (results) => set({ results }),
   setSeekerTargets: (seekerTargets) => set({ seekerTargets }),
+  setSeekerCursor: (seekerCursor) => set({ seekerCursor }),
   setToast: (toast) => set({ toast }),
 }));

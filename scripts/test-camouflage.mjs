@@ -1,8 +1,9 @@
 // Test du moteur de scoring (#14) sur des cas synthétiques.
 // Usage: node scripts/test-camouflage.mjs (après build du serveur)
 import { scoreCamouflage } from '../apps/server/dist/game/camouflage.js';
+import { CHARACTER_SIZE } from '../packages/shared/dist/index.js';
 
-const S = 64;
+const S = CHARACTER_SIZE;
 
 function make(fn) {
   const px = new Uint8ClampedArray(S * S * 4);

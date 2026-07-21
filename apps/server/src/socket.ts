@@ -3,7 +3,6 @@ import { Server, type Socket } from 'socket.io';
 import {
   CHARACTER_SIZE,
   EVENTS,
-  HIT_RADIUS,
   LOBBY,
   WRONG_CLICK_COOLDOWN_MS,
   createRoomSchema,
@@ -12,11 +11,14 @@ import {
   placementSchema,
   presenceUpdateSchema,
   seekerClickSchema,
+  seekerCursorSchema,
   setModeSchema,
+  setSettingsSchema,
   type ClientToServerEvents,
   type ServerToClientEvents,
 } from '@mimic/shared';
 import { scoreCamouflage } from './game/camouflage.js';
+import { characterHit } from './game/hitTest.js';
 import { sampleArtworkBackground } from './game/artworkPixels.js';
 import { verifyToken } from './auth/tokens.js';
 import { env } from './env.js';
@@ -147,6 +149,24 @@ export function setupSocket(
       ack({ ok: true });
     });
 
+    socket.on(EVENTS.roomSetSettings, (payload, ack) => {
+      const code = socket.data.roomCode;
+      const room = code ? getRoom(code) : undefined;
+      if (!room) return ack({ ok: false, error: 'Salon introuvable.' });
+      if (room.phase !== 'lobby') return ack({ ok: false, error: 'La partie a déjà commencé.' });
+      if (room.hostId !== socket.data.playerId) {
+        return ack({ ok: false, error: "Seul l'hôte peut changer les réglages." });
+      }
+      const parsed = setSettingsSchema.safeParse(payload);
+      if (!parsed.success) return ack({ ok: false, error: 'Réglages invalides.' });
+      if (parsed.data.camouflageSec !== undefined) {
+        room.settings.camouflageSec = parsed.data.camouflageSec;
+      }
+      if (parsed.data.seekingSec !== undefined) room.settings.seekingSec = parsed.data.seekingSec;
+      broadcastSnapshot(io, room);
+      ack({ ok: true });
+    });
+
     socket.on(EVENTS.roomStart, (ack) => {
       const code = socket.data.roomCode;
       const room = code ? getRoom(code) : undefined;
@@ -251,15 +271,19 @@ export function setupSocket(
       const { x, y } = parsed.data;
       seeker.matchStats.totalClicks++;
 
-      // Cible = caché verrouillé le plus proche du clic dans le rayon de tolérance.
+      // Cible = caché verrouillé dont la silhouette peinte est touchée au pixel
+      // près ; en cas de recouvrement, le plus proche du centre l'emporte.
       let target: ServerPlayer | null = null;
       let best = Infinity;
       for (const p of room.players.values()) {
         if (p.role !== 'hider' || p.found || !p.placement?.locked || !p.pixels) continue;
+        if (!characterHit(p.pixels, p.placement.x, p.placement.y, p.placement.rotation, x, y)) {
+          continue;
+        }
         const cx = p.placement.x + CHARACTER_SIZE / 2;
         const cy = p.placement.y + CHARACTER_SIZE / 2;
         const dist = Math.hypot(x - cx, y - cy);
-        if (dist <= HIT_RADIUS && dist < best) {
+        if (dist < best) {
           best = dist;
           target = p;
         }
@@ -286,6 +310,17 @@ export function setupSocket(
       });
       ack({ ok: true, hit: true, playerId: target.id });
       maybeEndSeeking(io, room);
+    });
+
+    // Curseur du chercheur : relayé en temps réel aux AUTRES joueurs (spectacle
+    // de la traque). Non validé lourdement : payload minimal, aucun ack.
+    socket.on(EVENTS.seekerCursor, (payload) => {
+      const code = socket.data.roomCode;
+      const room = code ? getRoom(code) : undefined;
+      if (!room || room.phase !== 'seeking' || room.seekerId !== socket.data.playerId) return;
+      const parsed = seekerCursorSchema.safeParse(payload);
+      if (!parsed.success) return;
+      socket.to(room.code).emit(EVENTS.seekerCursor, { x: parsed.data.x, y: parsed.data.y });
     });
 
     socket.on(EVENTS.roomLeave, () => {

@@ -5,8 +5,9 @@
 const { ARTWORKS } = await import('../apps/server/dist/game/artworks.js');
 const { sampleArtworkBackground } = await import('../apps/server/dist/game/artworkPixels.js');
 const { scoreCamouflage } = await import('../apps/server/dist/game/camouflage.js');
+const { CHARACTER_SIZE } = await import('../packages/shared/dist/index.js');
 
-const S = 64;
+const S = CHARACTER_SIZE;
 const fail = (m) => {
   console.error('❌', m);
   process.exit(1);

@@ -13,6 +13,7 @@ import { artworkBg } from './artworkBg.js';
 
 const S = CHARACTER_SIZE;
 const CLICK_MOVE_THRESHOLD = 6;
+const CURSOR_EMIT_MS = 45;
 
 interface Camera {
   zoom: number;
@@ -37,6 +38,10 @@ export function SeekerStage({
   const outerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const targets = useGameStore((s) => s.seekerTargets);
+  // Curseur du chercheur relayé par le serveur : montré aux joueurs qui regardent
+  // la traque (jamais au chercheur lui-même, qui voit son vrai curseur).
+  const remoteCursor = useGameStore((s) => s.seekerCursor);
+  const lastCursor = useRef(0);
 
   const [vp, setVp] = useState({ w: 960, h: 640 });
   const [cam, setCam] = useState<Camera>({ zoom: 1, x: 0, y: 0 });
@@ -115,7 +120,20 @@ export function SeekerStage({
       /* ignore */
     }
   };
+  const emitCursor = (clientX: number, clientY: number) => {
+    if (!interactive) return;
+    const now = Date.now();
+    if (now - lastCursor.current < CURSOR_EMIT_MS) return;
+    lastCursor.current = now;
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const ax = (clientX - rect.left - cam.x) / scale;
+    const ay = (clientY - rect.top - cam.y) / scale;
+    socket.emit(EVENTS.seekerCursor, { x: ax, y: ay });
+  };
+
   const onPointerMove = (e: React.PointerEvent) => {
+    emitCursor(e.clientX, e.clientY);
     const d = drag.current;
     if (!d) return;
     const dx = e.clientX - d.cx;
@@ -224,6 +242,26 @@ export function SeekerStage({
               );
             })}
           </div>
+
+          {!interactive && remoteCursor && (
+            <div
+              className="pointer-events-none absolute z-20 -translate-x-1 -translate-y-1 transition-[left,top] duration-75 ease-linear"
+              style={{ left: cam.x + remoteCursor.x * scale, top: cam.y + remoteCursor.y * scale }}
+            >
+              <svg width="26" height="26" viewBox="0 0 24 24" className="drop-shadow-md">
+                <path
+                  d="M5 3l14 8-6 1.5L9.5 19 5 3z"
+                  fill="#f59e0b"
+                  stroke="#1c1917"
+                  strokeWidth="1.5"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="ml-4 whitespace-nowrap rounded bg-gold/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                🔍 chercheur
+              </span>
+            </div>
+          )}
 
           {flash && (
             <div

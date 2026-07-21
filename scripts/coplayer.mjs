@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 const clientPkg = fileURLToPath(new URL('../apps/client/package.json', import.meta.url));
 const { io } = createRequire(clientPkg)('socket.io-client');
 
-const S = 64;
+const { CHARACTER_SIZE } = await import('../packages/shared/dist/index.js');
+const S = CHARACTER_SIZE;
 const URL_ = `http://localhost:${process.env.PORT ?? 3000}`;
 const sock = io(URL_, { transports: ['websocket'], forceNew: true });
 sock.on('session', (d) => (sock.pid = d.playerId));

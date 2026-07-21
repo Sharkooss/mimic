@@ -10,9 +10,11 @@ import { createRequire } from 'node:module';
 const require = createRequire(new URL('../apps/client/package.json', import.meta.url));
 const { io } = require('socket.io-client');
 
+import { CHARACTER_SIZE } from '../packages/shared/dist/index.js';
+
 const PORT = process.argv[2] ?? '3999';
 const URL_ = `http://localhost:${PORT}`;
-const S = 64;
+const S = CHARACTER_SIZE;
 
 const fail = (msg) => {
   console.error('❌', msg);

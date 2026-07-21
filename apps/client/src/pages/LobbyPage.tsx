@@ -1,6 +1,13 @@
 import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { EVENTS, GAME_MODES, LOBBY, type GameMode } from '@mimic/shared';
+import {
+  EVENTS,
+  GAME_MODES,
+  LOBBY,
+  PHASE_BOUNDS,
+  type GameMode,
+  type RoomSettings,
+} from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
 import { Button, Card } from '../components/ui.js';
@@ -103,6 +110,8 @@ export function LobbyPage(): JSX.Element {
         {!isHost && <p className="mt-1 text-xs text-muted">Seul l’hôte peut changer le mode.</p>}
       </div>
 
+      <SettingsPanel settings={room.settings} isHost={isHost} />
+
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
           Joueurs ({room.players.length}/{LOBBY.maxPlayers})
@@ -137,6 +146,85 @@ export function LobbyPage(): JSX.Element {
       ) : (
         <p className="text-center text-sm text-muted">En attente du lancement par l’hôte…</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Réglages de durées (temps de camouflage / de recherche). L'hôte les ajuste au
+ * curseur ; les valeurs sont poussées au serveur en direct et diffusées à tous.
+ * Les autres joueurs les voient en lecture seule.
+ */
+function SettingsPanel({ settings, isHost }: { settings: RoomSettings; isHost: boolean }) {
+  const update = (patch: Partial<RoomSettings>) =>
+    socket.emit(EVENTS.roomSetSettings, patch, () => undefined);
+
+  return (
+    <div>
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
+        Réglages de la partie
+      </h2>
+      <Card className="space-y-4 p-5">
+        <SettingSlider
+          label="🎨 Temps de camouflage"
+          value={settings.camouflageSec}
+          min={PHASE_BOUNDS.camouflage.min}
+          max={PHASE_BOUNDS.camouflage.max}
+          disabled={!isHost}
+          onChange={(camouflageSec) => update({ camouflageSec })}
+        />
+        <SettingSlider
+          label="🔍 Temps de recherche"
+          value={settings.seekingSec}
+          min={PHASE_BOUNDS.seeking.min}
+          max={PHASE_BOUNDS.seeking.max}
+          disabled={!isHost}
+          onChange={(seekingSec) => update({ seekingSec })}
+        />
+        {!isHost && <p className="text-xs text-muted">Seul l’hôte peut changer les réglages.</p>}
+      </Card>
+    </div>
+  );
+}
+
+function SettingSlider({
+  label,
+  value,
+  min,
+  max,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  disabled: boolean;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between">
+        <span className="text-sm font-medium">{label}</span>
+        <span className="font-mono text-sm tabular-nums text-accent">
+          {value}
+          <span className="ml-0.5 text-xs text-muted">s</span>
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={5}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-accent disabled:cursor-not-allowed disabled:opacity-50"
+      />
+      <div className="mt-0.5 flex justify-between text-[10px] text-muted">
+        <span>{min}s</span>
+        <span>{max}s</span>
+      </div>
     </div>
   );
 }

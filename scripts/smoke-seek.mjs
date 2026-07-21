@@ -9,10 +9,12 @@
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
+import { CHARACTER_SIZE } from '../packages/shared/dist/index.js';
+
 const clientPkg = fileURLToPath(new URL('../apps/client/package.json', import.meta.url));
 const { io } = createRequire(clientPkg)('socket.io-client');
 
-const S = 64;
+const S = CHARACTER_SIZE;
 const SERVER_URL = `http://localhost:${process.env.PORT ?? 3000}`;
 const opts = { transports: ['websocket'], forceNew: true };
 const a = io(SERVER_URL, opts);

@@ -13,6 +13,14 @@ export interface RoomListing {
 /** Phases de la boucle de jeu. */
 export type GamePhase = 'lobby' | 'camouflage' | 'seeking' | 'results' | 'finished';
 
+/** Réglages de partie ajustables par l'hôte dans le lobby (durées en secondes). */
+export interface RoomSettings {
+  /** Temps de peinture/placement laissé aux cachés. */
+  camouflageSec: number;
+  /** Temps de traque du chercheur. */
+  seekingSec: number;
+}
+
 /** Rôle d'un joueur pendant une manche. */
 export type PlayerRole = 'seeker' | 'hider';
 
@@ -139,4 +147,6 @@ export interface RoomSnapshot {
   seekerId: string | null;
   /** Timestamp (ms epoch serveur) de fin de la phase courante, null si non minutée. */
   phaseEndsAt: number | null;
+  /** Réglages de durées choisis par l'hôte. */
+  settings: RoomSettings;
 }

@@ -26,9 +26,13 @@ export function useSocket(): void {
     // Cibles du chercheur : listener persistant (l'event précède le montage de la vue).
     const onTargets = (targets: SeekerTarget[]) =>
       useGameStore.getState().setSeekerTargets(targets);
+    const onCursor = (c: { x: number; y: number }) => useGameStore.getState().setSeekerCursor(c);
     const onRoom = (snap: RoomSnapshot) => {
       setRoom(snap);
-      if (snap.phase !== 'seeking') useGameStore.getState().setSeekerTargets([]);
+      if (snap.phase !== 'seeking') {
+        useGameStore.getState().setSeekerTargets([]);
+        useGameStore.getState().setSeekerCursor(null);
+      }
     };
 
     socket.on('connect', onConnect);
@@ -36,6 +40,7 @@ export function useSocket(): void {
     socket.on(EVENTS.session, onSession);
     socket.on(EVENTS.progress, onProgress);
     socket.on(EVENTS.seekingTargets, onTargets);
+    socket.on(EVENTS.seekerCursor, onCursor);
     socket.on(EVENTS.roomSnapshot, onRoom);
     socket.on(EVENTS.roundResults, setResults);
     socket.on(EVENTS.errorToast, setToast);
@@ -46,6 +51,7 @@ export function useSocket(): void {
       socket.off(EVENTS.session, onSession);
       socket.off(EVENTS.progress, onProgress);
       socket.off(EVENTS.seekingTargets, onTargets);
+      socket.off(EVENTS.seekerCursor, onCursor);
       socket.off(EVENTS.roomSnapshot, onRoom);
       socket.off(EVENTS.roundResults, setResults);
       socket.off(EVENTS.errorToast, setToast);

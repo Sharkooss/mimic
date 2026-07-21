@@ -5,11 +5,12 @@
 // Usage : node scripts/smoke-persist.mjs   (BASE surchargeable par env)
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { CHARACTER_SIZE } from '../packages/shared/dist/index.js';
 const req = createRequire(fileURLToPath(new URL('../apps/client/package.json', import.meta.url)));
 const { io } = req('socket.io-client');
 
 const BASE = process.env.BASE ?? 'https://mimic.louis-nectoux.fr';
-const S = 64;
+const S = CHARACTER_SIZE;
 const fail = (m) => {
   console.error('❌', m);
   process.exit(1);

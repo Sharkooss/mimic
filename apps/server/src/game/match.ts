@@ -63,8 +63,8 @@ function beginRound(io: IO, room: Room): void {
     p.role = p.id === room.seekerId ? 'seeker' : 'hider';
   }
 
-  setPhase(io, room, 'camouflage', PHASE_DURATIONS.camouflage, () => {
-    setPhase(io, room, 'seeking', PHASE_DURATIONS.seeking, () => endRound(io, room));
+  setPhase(io, room, 'camouflage', room.settings.camouflageSec, () => {
+    setPhase(io, room, 'seeking', room.settings.seekingSec, () => endRound(io, room));
   });
 }
 
@@ -189,7 +189,7 @@ function awardRoundPoints(room: Room): RoundResults {
     } else if (p.role === 'hider') {
       // Survie horodatée : temps tenu avant d'être trouvé (toute la phase si jamais trouvé).
       const seekStart = room.seekingStartedAt ?? Date.now();
-      const seekDurMs = PHASE_DURATIONS.seeking * 1000;
+      const seekDurMs = room.settings.seekingSec * 1000;
       const survivedMs = p.found && p.foundAtMs != null ? p.foundAtMs - seekStart : seekDurMs;
       const survived = Math.max(
         0,

@@ -1,10 +1,12 @@
 import {
   LOBBY,
+  PHASE_DURATIONS,
   type Artwork,
   type CharacterPlacement,
   type GameMode,
   type PlayerRole,
   type RoomListing,
+  type RoomSettings,
   type RoomSnapshot,
   type RoomVisibility,
   type PublicPlayer,
@@ -84,6 +86,8 @@ export interface Room {
   seekerId: string | null;
   phaseEndsAt: number | null;
   createdAt: number;
+  /** Réglages de durées ajustables par l'hôte. */
+  settings: RoomSettings;
   /** Œuvre de la manche courante (null en lobby). */
   artwork: Artwork | null;
   /** Timestamp (ms epoch) de début de la phase de recherche (pour la survie). */
@@ -123,6 +127,10 @@ export function createRoom(mode: GameMode, visibility: RoomVisibility = 'private
     seekerId: null,
     phaseEndsAt: null,
     createdAt: Date.now(),
+    settings: {
+      camouflageSec: PHASE_DURATIONS.camouflage,
+      seekingSec: PHASE_DURATIONS.seeking,
+    },
     artwork: null,
     seekingStartedAt: null,
     artworkSequence: [],
@@ -168,6 +176,7 @@ export function snapshot(room: Room): RoomSnapshot {
     artwork: room.artwork,
     seekerId: room.seekerId,
     phaseEndsAt: room.phaseEndsAt,
+    settings: { ...room.settings },
   };
 }
 
