@@ -167,8 +167,10 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
     let rows: Array<{ user: UserRow; stats: StatsShape | null }>;
     if (sort === 'xp') {
-      // Classement par progression : tout le monde (même sans partie jouée).
+      // Classement par progression, restreint aux joueurs ayant réellement joué
+      // (≥ 1 partie) — on écarte les comptes créés mais jamais actifs.
       const users = await prisma.user.findMany({
+        where: { stats: { gamesPlayed: { gt: 0 } } },
         orderBy: [{ xp: 'desc' }, { createdAt: 'asc' }],
         take: limit,
         include: { stats: true },
