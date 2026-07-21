@@ -9,8 +9,9 @@ import {
   type RoundResults,
   type ServerToClientEvents,
 } from '@mimic/shared';
-import { clearRoomTimer, snapshot, type Room } from './rooms.js';
+import { clearRoomTimer, freshMatchStats, snapshot, type Room } from './rooms.js';
 import { pickArtworkSequence } from './artworks.js';
+import { persistMatch } from './persistence.js';
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -35,6 +36,10 @@ export function startMatch(io: IO, room: Room): { ok: boolean; error?: string } 
   room.totalRounds = room.seekerOrder.length;
   room.artworkSequence = pickArtworkSequence(room.totalRounds);
   room.round = 0;
+  for (const p of room.players.values()) {
+    p.score = 0;
+    p.matchStats = freshMatchStats();
+  }
   beginRound(io, room);
   return { ok: true };
 }
@@ -89,9 +94,11 @@ function endRound(io: IO, room: Room): void {
   });
 }
 
-/** Fin de partie : classement final, retour possible au lobby. */
+/** Fin de partie : classement final, persistance, retour possible au lobby. */
 function finishMatch(io: IO, room: Room): void {
   clearRoomTimer(room);
+  // Persiste la partie (historique + stats) avant de nettoyer l'état de manche.
+  void persistMatch(room);
   room.phase = 'finished';
   room.seekerId = null;
   room.artwork = null;
@@ -132,6 +139,8 @@ function awardRoundPoints(room: Room): RoundResults {
     if (p.role === 'seeker') {
       pts += foundCount * SCORING.seekerPerFind;
       if (hiders.length > 0 && foundCount === hiders.length) pts += SCORING.seekerSweepBonus;
+      p.matchStats.roundsAsSeeker++;
+      p.matchStats.foundAsSeeker += foundCount;
     } else if (p.role === 'hider') {
       // Survie horodatée : temps tenu avant d'être trouvé (toute la phase si jamais trouvé).
       const seekStart = room.seekingStartedAt ?? Date.now();
@@ -145,6 +154,15 @@ function awardRoundPoints(room: Room): RoundResults {
       if (!p.found) pts += SCORING.hiddenNeverFoundBonus;
       // Bonus proportionnel à la qualité du camouflage (récompense l'effort de peinture).
       pts += Math.round(((p.camouflageScore ?? 0) / 100) * SCORING.hiddenCamouflageBonusMax);
+
+      // Cumuls de stats pour la persistance (#18).
+      p.matchStats.survivalMs += Math.max(0, survivedMs);
+      if (p.found) p.matchStats.timesFound++;
+      if (p.camouflageScore != null) {
+        p.matchStats.camoSum += p.camouflageScore;
+        p.matchStats.camoSamples++;
+        p.matchStats.camoBest = Math.max(p.matchStats.camoBest, p.camouflageScore);
+      }
     }
     p.score += pts;
     scores.push({ playerId: p.id, pseudo: p.pseudo, roundPoints: pts, totalScore: p.score });

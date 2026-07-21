@@ -2,10 +2,14 @@ import { buildServer } from './server.js';
 import { setupSocket } from './socket.js';
 import { env } from './env.js';
 import { pruneEmptyRooms } from './game/rooms.js';
+import { seedArtworks } from './game/persistence.js';
 
 async function main(): Promise<void> {
   const app = await buildServer();
   setupSocket(app.server);
+
+  // Sème le catalogue d'œuvres en base (best-effort, no-op sans base).
+  void seedArtworks();
 
   // Nettoyage périodique des salons abandonnés.
   const pruneTimer = setInterval(pruneEmptyRooms, 10 * 60 * 1000);

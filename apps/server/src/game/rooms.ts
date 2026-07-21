@@ -37,6 +37,35 @@ export interface ServerPlayer extends PublicPlayer {
   camouflageScore: number | null;
   /** (Chercheur) timestamp (ms epoch) avant lequel un nouveau clic est refusé. */
   clickCooldownUntil: number;
+  /** Cumuls de statistiques sur la partie (pour la persistance #18). */
+  matchStats: MatchStats;
+}
+
+/** Statistiques agrégées d'un joueur sur une partie (réinitialisées au démarrage). */
+export interface MatchStats {
+  roundsAsSeeker: number;
+  foundAsSeeker: number;
+  timesFound: number;
+  survivalMs: number;
+  camoSum: number;
+  camoSamples: number;
+  camoBest: number;
+  totalClicks: number;
+  missedClicks: number;
+}
+
+export function freshMatchStats(): MatchStats {
+  return {
+    roundsAsSeeker: 0,
+    foundAsSeeker: 0,
+    timesFound: 0,
+    survivalMs: 0,
+    camoSum: 0,
+    camoSamples: 0,
+    camoBest: 0,
+    totalClicks: 0,
+    missedClicks: 0,
+  };
 }
 
 export interface Room {

@@ -22,6 +22,7 @@ import {
   createRoom,
   deleteRoom,
   findByToken,
+  freshMatchStats,
   getRoom,
   newPlayerId,
   snapshot,
@@ -180,6 +181,7 @@ export function setupSocket(
       const parsed = seekerClickSchema.safeParse(payload);
       if (!parsed.success) return ack({ ok: false, error: 'Clic invalide.' });
       const { x, y } = parsed.data;
+      seeker.matchStats.totalClicks++;
 
       // Cible = caché verrouillé le plus proche du clic dans le rayon de tolérance.
       let target: ServerPlayer | null = null;
@@ -196,6 +198,7 @@ export function setupSocket(
       }
 
       if (!target) {
+        seeker.matchStats.missedClicks++;
         seeker.clickCooldownUntil = now + WRONG_CLICK_COOLDOWN_MS;
         return ack({ ok: true, hit: false, playerId: null });
       }
@@ -263,6 +266,7 @@ function addPlayer(room: Room, socket: MimicSocket, isHost: boolean): void {
     pixels: null,
     camouflageScore: null,
     clickCooldownUntil: 0,
+    matchStats: freshMatchStats(),
   };
   room.players.set(player.id, player);
   if (isHost) room.hostId = player.id;

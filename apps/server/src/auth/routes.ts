@@ -93,4 +93,45 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return reply.code(401).send({ error: 'Compte introuvable.' });
     return { user: publicUser(user) };
   });
+
+  // Statistiques agrégées du joueur connecté (#18/#19).
+  app.get('/api/me/stats', async (req, reply) => {
+    if (!prisma) return noDb(reply);
+    const userId = userIdFromAuthHeader(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'Non authentifié.' });
+    const stats = await prisma.playerStats.findUnique({ where: { userId } });
+    return { stats };
+  });
+
+  // Historique des parties du joueur connecté (#18/#21).
+  app.get('/api/me/history', async (req, reply) => {
+    if (!prisma) return noDb(reply);
+    const userId = userIdFromAuthHeader(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'Non authentifié.' });
+    const rows = await prisma.matchParticipant.findMany({
+      where: { userId },
+      orderBy: { match: { createdAt: 'desc' } },
+      take: 20,
+      select: {
+        score: true,
+        match: {
+          select: {
+            id: true,
+            mode: true,
+            createdAt: true,
+            _count: { select: { participants: true, rounds: true } },
+          },
+        },
+      },
+    });
+    const history = rows.map((r) => ({
+      matchId: r.match.id,
+      mode: r.match.mode,
+      playedAt: r.match.createdAt,
+      score: r.score,
+      players: r.match._count.participants,
+      rounds: r.match._count.rounds,
+    }));
+    return { history };
+  });
 }
