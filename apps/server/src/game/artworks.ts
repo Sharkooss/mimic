@@ -2,9 +2,9 @@ import type { Artwork } from '@mimic/shared';
 import { ARTWORKS_SEED } from './artworks.generated.js';
 
 /**
- * Catalogue d'œuvres (issue #17). Généré par `scripts/prepare-artworks.mjs`
- * depuis le Met Open Access (domaine public). Pour en ajouter : relancer le
- * pipeline, qui régénère `artworks.generated.ts` et les images d'affichage.
+ * Catalogue d'œuvres (issue #17). Généré depuis le Met Open Access (domaine
+ * public). Pour tout régénérer : `scripts/prepare-artworks.mjs`. Pour AJOUTER
+ * sans toucher à l'existant : `scripts/add-artworks.mjs` (incrémental, idempotent).
  */
 export const ARTWORKS: Artwork[] = ARTWORKS_SEED;
 
