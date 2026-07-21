@@ -35,7 +35,7 @@ export default function App(): JSX.Element {
 
   return (
     <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b border-line px-6 py-4">
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-line/70 bg-canvas/80 px-6 py-3 backdrop-blur-md">
         <Link to="/" className="transition hover:opacity-80">
           <Wordmark />
         </Link>

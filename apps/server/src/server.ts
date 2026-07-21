@@ -8,6 +8,7 @@ import { env, isProd } from './env.js';
 import { roomCount } from './game/rooms.js';
 import { hasDatabase } from './db.js';
 import { registerAuthRoutes } from './auth/routes.js';
+import { ARTWORKS } from './game/artworks.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -30,6 +31,18 @@ export async function buildServer(): Promise<FastifyInstance> {
   }));
 
   app.get('/api/version', async () => ({ name: 'mimic', version: '0.1.0', accounts: hasDatabase }));
+
+  // Catalogue d'œuvres (public) — pour la vitrine de l'accueil.
+  app.get('/api/artworks', async () => ({
+    artworks: ARTWORKS.map((a) => ({
+      id: a.id,
+      title: a.title,
+      author: a.author,
+      year: a.year,
+      imageUrl: a.imageUrl,
+      difficulty: a.difficulty,
+    })),
+  }));
 
   // Authentification (#5) — actif seulement si une base est configurée.
   await registerAuthRoutes(app);

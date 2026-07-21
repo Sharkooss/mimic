@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { EVENTS, GAME_MODES, LOBBY, type GameMode } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
+import { Button, Card } from '../components/ui.js';
 import { GamePage } from './GamePage.js';
 
 const MODE_LABELS: Record<GameMode, string> = {
@@ -47,16 +48,19 @@ export function LobbyPage(): JSX.Element {
   };
 
   return (
-    <div className="animate-fade-in space-y-8">
-      <div className="flex items-start justify-between">
+    <div className="animate-fade-in space-y-7">
+      <Card className="flex items-center justify-between p-5">
         <div>
-          <div className="text-sm text-muted">Code du salon</div>
-          <div className="font-mono text-3xl font-bold tracking-[0.3em]">{room.code}</div>
+          <div className="text-xs uppercase tracking-[0.2em] text-muted">Code du salon</div>
+          <div className="font-display text-4xl font-bold tracking-[0.28em] text-ink">
+            {room.code}
+          </div>
+          <div className="mt-1 text-xs text-muted">Partage-le pour inviter tes amis.</div>
         </div>
-        <button onClick={leave} className="text-sm text-muted hover:text-ink">
+        <Button variant="ghost" onClick={leave}>
           Quitter
-        </button>
-      </div>
+        </Button>
+      </Card>
 
       <div>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
@@ -108,13 +112,13 @@ export function LobbyPage(): JSX.Element {
       </div>
 
       {isHost ? (
-        <button
+        <Button
           disabled={room.players.length < LOBBY.minPlayers}
-          className="w-full rounded-xl bg-accent py-3 font-semibold text-white shadow-soft transition hover:bg-accent-dark disabled:opacity-40"
+          className="w-full py-3.5 text-base"
           onClick={() => socket.emit(EVENTS.roomStart, () => undefined)}
         >
           {room.players.length < LOBBY.minPlayers ? 'En attente de joueurs…' : 'Lancer la partie'}
-        </button>
+        </Button>
       ) : (
         <p className="text-center text-sm text-muted">En attente du lancement par l’hôte…</p>
       )}
