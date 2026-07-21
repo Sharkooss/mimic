@@ -16,6 +16,7 @@ import {
   CHARACTER_ROTATIONS,
   CHARACTER_SIZE,
   EVENTS,
+  unrotatePixel,
   type Artwork,
   type CharacterRotation,
 } from '@mimic/shared';
@@ -291,10 +292,14 @@ export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; l
   }, [live, pixels, artwork.id]);
 
   const charPixel = (e: { clientX: number; clientY: number }) => {
+    // Le canvas est tourné en CSS (transform: rotate) mais on peint dans les
+    // pixels SOURCE (rotation 0) : on inverse la rotation pour peindre là où on
+    // clique réellement sur le personnage tourné.
     const rect = charRef.current!.getBoundingClientRect();
-    const cx = Math.floor(((e.clientX - rect.left) / rect.width) * S);
-    const cy = Math.floor(((e.clientY - rect.top) / rect.height) * S);
-    return { x: Math.max(0, Math.min(S - 1, cx)), y: Math.max(0, Math.min(S - 1, cy)) };
+    const dx = Math.floor(((e.clientX - rect.left) / rect.width) * S);
+    const dy = Math.floor(((e.clientY - rect.top) / rect.height) * S);
+    const [sx, sy] = unrotatePixel(dx, dy, rotation);
+    return { x: Math.max(0, Math.min(S - 1, sx)), y: Math.max(0, Math.min(S - 1, sy)) };
   };
 
   const sampleAt = (e: { clientX: number; clientY: number }) => {

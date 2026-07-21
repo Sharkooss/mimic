@@ -33,15 +33,24 @@ export function characterHit(
       const dx = Math.round(dxc) + ddx;
       const dy = Math.round(dyc) + ddy;
       if (dx < 0 || dy < 0 || dx >= S || dy >= S) continue;
-      const [sx, sy] = unrotate(dx, dy, rotation);
+      const [sx, sy] = unrotatePixel(dx, dy, rotation);
       if ((pixels[(sy * S + sx) * 4 + 3] ?? 0) > 0) return true;
     }
   }
   return false;
 }
 
-/** Coordonnées source (avant rotation d'affichage) d'un pixel affiché (dx,dy). */
-function unrotate(dx: number, dy: number, rotation: CharacterRotation): [number, number] {
+/**
+ * Coordonnées du pixel SOURCE (avant la rotation d'affichage CSS) correspondant
+ * à un pixel AFFICHÉ (dx,dy) d'une empreinte S×S tournée de `rotation`. Sert à la
+ * fois à la hitbox (clic→pixel) et à la peinture (peindre là où on clique sur le
+ * personnage tourné).
+ */
+export function unrotatePixel(
+  dx: number,
+  dy: number,
+  rotation: CharacterRotation,
+): [number, number] {
   switch (rotation) {
     case 90:
       return [dy, S - 1 - dx];
