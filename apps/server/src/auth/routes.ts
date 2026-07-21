@@ -100,38 +100,97 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const userId = userIdFromAuthHeader(req.headers.authorization);
     if (!userId) return reply.code(401).send({ error: 'Non authentifié.' });
     const stats = await prisma.playerStats.findUnique({ where: { userId } });
-    return { stats };
+    return { stats: stats ? stripStats(stats) : null };
   });
 
-  // Historique des parties du joueur connecté (#18/#21).
-  app.get('/api/me/history', async (req, reply) => {
+  // Profil public partageable (#19).
+  app.get<{ Params: { pseudo: string } }>('/api/users/:pseudo', async (req, reply) => {
     if (!prisma) return noDb(reply);
-    const userId = userIdFromAuthHeader(req.headers.authorization);
-    if (!userId) return reply.code(401).send({ error: 'Non authentifié.' });
-    const rows = await prisma.matchParticipant.findMany({
-      where: { userId },
-      orderBy: { match: { createdAt: 'desc' } },
-      take: 20,
-      select: {
-        score: true,
-        match: {
-          select: {
-            id: true,
-            mode: true,
-            createdAt: true,
-            _count: { select: { participants: true, rounds: true } },
+    const user = await prisma.user.findUnique({
+      where: { pseudo: req.params.pseudo },
+      include: { stats: true },
+    });
+    if (!user) return reply.code(404).send({ error: 'Joueur introuvable.' });
+    const { stats, ...u } = user;
+    const statsDto = stats ? stripStats(stats) : null;
+    return {
+      profile: {
+        pseudo: u.pseudo,
+        level: u.level,
+        xp: u.xp,
+        avatarUrl: u.avatarUrl ?? null,
+        createdAt: u.createdAt,
+        stats: statsDto,
+      },
+    };
+  });
+
+  // Historique des parties du joueur connecté, paginé (#18/#21).
+  app.get<{ Querystring: { offset?: string; limit?: string } }>(
+    '/api/me/history',
+    async (req, reply) => {
+      if (!prisma) return noDb(reply);
+      const userId = userIdFromAuthHeader(req.headers.authorization);
+      if (!userId) return reply.code(401).send({ error: 'Non authentifié.' });
+      const offset = Math.max(0, Number(req.query.offset ?? 0) || 0);
+      const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 20) || 20));
+      const rows = await prisma.matchParticipant.findMany({
+        where: { userId },
+        orderBy: { match: { createdAt: 'desc' } },
+        skip: offset,
+        take: limit,
+        select: {
+          score: true,
+          match: {
+            select: {
+              id: true,
+              mode: true,
+              createdAt: true,
+              _count: { select: { participants: true, rounds: true } },
+            },
           },
         },
-      },
-    });
-    const history = rows.map((r) => ({
-      matchId: r.match.id,
-      mode: r.match.mode,
-      playedAt: r.match.createdAt,
-      score: r.score,
-      players: r.match._count.participants,
-      rounds: r.match._count.rounds,
-    }));
-    return { history };
-  });
+      });
+      const history = rows.map((r) => ({
+        matchId: r.match.id,
+        mode: r.match.mode,
+        playedAt: r.match.createdAt,
+        score: r.score,
+        players: r.match._count.participants,
+        rounds: r.match._count.rounds,
+      }));
+      return { history, offset, limit };
+    },
+  );
+}
+
+/** Ne garde que les champs de stats exposés (retire userId/updatedAt). */
+function stripStats(s: {
+  gamesPlayed: number;
+  gamesWon: number;
+  timesSeeker: number;
+  playersFound: number;
+  hiddenSeconds: number;
+  bestCamouflage: number;
+  avgCamouflage: number;
+  camouflageSamples: number;
+  timesFound: number;
+  avgSurvivalSeconds: number;
+  missedClicks: number;
+  totalClicks: number;
+}) {
+  return {
+    gamesPlayed: s.gamesPlayed,
+    gamesWon: s.gamesWon,
+    timesSeeker: s.timesSeeker,
+    playersFound: s.playersFound,
+    hiddenSeconds: s.hiddenSeconds,
+    bestCamouflage: s.bestCamouflage,
+    avgCamouflage: s.avgCamouflage,
+    camouflageSamples: s.camouflageSamples,
+    timesFound: s.timesFound,
+    avgSurvivalSeconds: s.avgSurvivalSeconds,
+    missedClicks: s.missedClicks,
+    totalClicks: s.totalClicks,
+  };
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import {
   EVENTS,
   type CamouflageBreakdown,
@@ -70,21 +71,17 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
         </PhaseCard>
       )}
 
-      {(room.phase === 'results' || room.phase === 'finished') && (
+      {room.phase === 'results' && (
         <PhaseCard>
-          <h2 className="text-lg font-semibold">
-            {room.phase === 'finished' ? '🏆 Classement final' : 'Résultats de la manche'}
-          </h2>
-          {room.phase === 'results' && room.artwork && results?.reveals?.length ? (
+          <h2 className="text-lg font-semibold">Résultats de la manche</h2>
+          {room.artwork && results?.reveals?.length ? (
             <ResultsStage artwork={room.artwork} reveals={results.reveals} />
           ) : null}
-          <Scoreboard
-            room={room}
-            roundScores={results?.scores}
-            reveals={room.phase === 'results' ? results?.reveals : undefined}
-          />
+          <Scoreboard room={room} roundScores={results?.scores} reveals={results?.reveals} />
         </PhaseCard>
       )}
+
+      {room.phase === 'finished' && <FinalStandings room={room} />}
     </div>
   );
 }
@@ -306,6 +303,79 @@ function ArtworkCard({ room }: { room: RoomSnapshot }) {
           {a.author} · {a.year} · {'★'.repeat(a.difficulty)}
           {'☆'.repeat(4 - a.difficulty)}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Classement final soigné : podium + classement complet (#22). */
+function FinalStandings({ room }: { room: RoomSnapshot }) {
+  const myId = useGameStore((s) => s.playerId);
+  const ranked = [...room.players].sort((a, b) => b.score - a.score);
+  const podium = ranked.slice(0, 3);
+  const order = [1, 0, 2]; // 2e, 1er, 3e (1er au centre, surélevé)
+  const heights = ['h-20', 'h-28', 'h-16'];
+  const medals = ['🥈', '🥇', '🥉'];
+
+  return (
+    <div className="animate-slide-up space-y-6 rounded-2xl border border-line bg-surface p-6 shadow-soft">
+      <div className="text-center">
+        <div className="text-3xl">🏆</div>
+        <h2 className="mt-1 text-xl font-bold">Partie terminée</h2>
+        {ranked[0] && (
+          <p className="text-sm text-muted">
+            <span className="font-semibold text-accent">{ranked[0].pseudo}</span> remporte la partie
+            avec {ranked[0].score} points !
+          </p>
+        )}
+      </div>
+
+      <div className="flex items-end justify-center gap-3">
+        {order.map((oi, i) => {
+          const p = podium[oi];
+          if (!p) return <div key={i} className="w-24" />;
+          return (
+            <div key={p.id} className="flex w-24 flex-col items-center">
+              <div className="text-2xl">{medals[oi]}</div>
+              <div className="max-w-full truncate text-sm font-medium">{p.pseudo}</div>
+              <div className="font-mono text-xs text-muted">{p.score}</div>
+              <div
+                className={`mt-1 w-full rounded-t-lg ${heights[oi]} ${
+                  oi === 1 ? 'bg-accent' : 'bg-accent-soft'
+                }`}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {ranked.length > 3 && (
+        <ol className="space-y-2">
+          {ranked.slice(3).map((p, i) => (
+            <li
+              key={p.id}
+              className="flex items-center justify-between rounded-lg border border-line px-4 py-2 text-sm"
+            >
+              <span className="flex items-center gap-3">
+                <span className="w-5 text-center font-mono text-muted">{i + 4}</span>
+                <span className="font-medium">
+                  {p.pseudo}
+                  {p.id === myId && <span className="ml-2 text-xs text-accent">(toi)</span>}
+                </span>
+              </span>
+              <span className="font-mono font-semibold">{p.score}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <div className="flex justify-center">
+        <Link
+          to="/"
+          className="rounded-xl border border-line px-5 py-2.5 text-sm font-semibold transition hover:border-muted/40"
+        >
+          Retour à l’accueil
+        </Link>
       </div>
     </div>
   );

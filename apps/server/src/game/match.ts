@@ -97,8 +97,8 @@ function endRound(io: IO, room: Room): void {
 /** Fin de partie : classement final, persistance, retour possible au lobby. */
 function finishMatch(io: IO, room: Room): void {
   clearRoomTimer(room);
-  // Persiste la partie (historique + stats) avant de nettoyer l'état de manche.
-  void persistMatch(room);
+  // Persiste la partie (historique + stats + XP) avant de nettoyer l'état de manche.
+  void persistMatch(io, room);
   room.phase = 'finished';
   room.seekerId = null;
   room.artwork = null;

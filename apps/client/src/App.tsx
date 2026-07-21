@@ -1,12 +1,14 @@
 import { useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Link } from 'react-router-dom';
 import { useSocket } from './hooks/useSocket.js';
 import { useGameStore } from './store/gameStore.js';
 import { useAuthStore } from './store/authStore.js';
 import { accountsEnabled, fetchMe, logout } from './lib/auth.js';
+import { Wordmark } from './components/ui.js';
 import { HomePage } from './pages/HomePage.js';
 import { LobbyPage } from './pages/LobbyPage.js';
 import { PaintPage } from './pages/PaintPage.js';
+import { ProfilePage } from './pages/ProfilePage.js';
 
 export default function App(): JSX.Element {
   useSocket();
@@ -33,31 +35,36 @@ export default function App(): JSX.Element {
 
   return (
     <div className="min-h-screen">
-      <header className="flex items-center justify-between px-6 py-4 border-b border-stone-200">
-        <div className="flex items-center gap-2 font-semibold text-lg tracking-tight">
-          <span className="text-accent">●</span> Mimic
-        </div>
+      <header className="flex items-center justify-between border-b border-line px-6 py-4">
+        <Link to="/" className="transition hover:opacity-80">
+          <Wordmark />
+        </Link>
         <div className="flex items-center gap-3">
           {user && (
             <span className="flex items-center gap-2 text-sm">
-              <span className="font-medium">{user.pseudo}</span>
-              <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs text-accent">
-                niv. {user.level}
-              </span>
+              <Link
+                to="/profile"
+                className="flex items-center gap-2 rounded-full px-2 py-1 transition hover:bg-line/60"
+              >
+                <span className="font-medium">{user.pseudo}</span>
+                <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
+                  niv. {user.level}
+                </span>
+              </Link>
               <button
                 onClick={() => {
                   logout();
                   setUser(null);
                 }}
-                className="text-xs text-stone-400 hover:text-stone-600"
+                className="text-xs text-muted hover:text-ink"
               >
                 déconnexion
               </button>
             </span>
           )}
           <span
-            className={`text-xs px-2 py-1 rounded-full ${
-              connected ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-200 text-stone-500'
+            className={`rounded-full px-2 py-1 text-xs ${
+              connected ? 'bg-emerald-100 text-emerald-700' : 'bg-line text-muted'
             }`}
           >
             {connected ? 'connecté' : 'hors ligne'}
@@ -69,9 +76,31 @@ export default function App(): JSX.Element {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/room/:code" element={<LobbyPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/paint" element={<PaintPage />} />
         </Routes>
       </main>
+
+      <Toast />
+    </div>
+  );
+}
+
+/** Notification éphémère (erreurs, gains d'XP). */
+function Toast(): JSX.Element | null {
+  const toast = useGameStore((s) => s.toast);
+  const setToast = useGameStore((s) => s.setToast);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(t);
+  }, [toast, setToast]);
+  if (!toast) return null;
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+      <div className="animate-pop rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-white shadow-pop">
+        {toast}
+      </div>
     </div>
   );
 }

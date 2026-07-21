@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CHARACTER_ROTATIONS, CHARACTER_SIZE, GAME_MODES, LOBBY } from './constants.js';
-import type { CharacterRotation } from './constants.js';
+import type { CharacterRotation, GameMode } from './constants.js';
 import type { CamouflageBreakdown, CharacterPlacement, RoomSnapshot } from './types.js';
 
 /* -------------------------------------------------------------------------- */
@@ -38,6 +38,8 @@ export const seekerClickSchema = z.object({
   y: z.number().finite(),
 });
 
+export const setModeSchema = z.object({ mode: z.enum(GAME_MODES) });
+
 export type CreateRoomPayload = z.infer<typeof createRoomSchema>;
 export type JoinRoomPayload = z.infer<typeof joinRoomSchema>;
 export type PlacementPayload = z.infer<typeof placementSchema>;
@@ -56,6 +58,7 @@ export interface ClientToServerEvents {
   ) => void;
   'room:join': (payload: JoinRoomPayload, ack: (res: AckResult<{ code: string }>) => void) => void;
   'room:leave': () => void;
+  'room:set-mode': (payload: { mode: GameMode }, ack: (res: AckResult) => void) => void;
   'room:start': (ack: (res: AckResult) => void) => void;
   'character:move': (payload: PlacementPayload) => void;
   'character:lock': (
@@ -79,10 +82,20 @@ export interface PlayerFoundReveal {
   pixels: number[];
 }
 
+/** Gain d'XP en fin de partie (joueur authentifié). */
+export interface ProgressUpdate {
+  gained: number;
+  xp: number;
+  level: number;
+  leveledUp: boolean;
+}
+
 /** Événements émis par le serveur vers le client. */
 export interface ServerToClientEvents {
   /** Id public du joueur pour ce socket (à la connexion/reconnexion). */
   session: (data: { playerId: string }) => void;
+  /** Progression XP/niveau (fin de partie, joueur connecté). */
+  progress: (data: ProgressUpdate) => void;
   'room:snapshot': (snapshot: RoomSnapshot) => void;
   'phase:changed': (phase: RoomSnapshot['phase'], phaseEndsAt: number | null) => void;
   'player:found': (data: PlayerFoundReveal) => void;
@@ -118,8 +131,10 @@ export const EVENTS = {
   roomCreate: 'room:create',
   roomJoin: 'room:join',
   roomLeave: 'room:leave',
+  roomSetMode: 'room:set-mode',
   roomStart: 'room:start',
   session: 'session',
+  progress: 'progress',
   roomSnapshot: 'room:snapshot',
   characterMove: 'character:move',
   characterLock: 'character:lock',

@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
-import { EVENTS } from '@mimic/shared';
+import { EVENTS, type ProgressUpdate } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
+import { useAuthStore } from '../store/authStore.js';
 
 /** Branche le cycle de vie du socket sur le store global. À monter une fois (App). */
 export function useSocket(): void {
@@ -17,10 +18,16 @@ export function useSocket(): void {
     const onConnect = () => setConnected(true);
     const onDisconnect = () => setConnected(false);
     const onSession = (data: { playerId: string }) => setPlayerId(data.playerId);
+    const onProgress = (p: ProgressUpdate) => {
+      const auth = useAuthStore.getState();
+      if (auth.user) auth.setUser({ ...auth.user, xp: p.xp, level: p.level });
+      setToast(p.leveledUp ? `🎉 Niveau ${p.level} atteint ! +${p.gained} XP` : `+${p.gained} XP`);
+    };
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on(EVENTS.session, onSession);
+    socket.on(EVENTS.progress, onProgress);
     socket.on(EVENTS.roomSnapshot, setRoom);
     socket.on(EVENTS.roundResults, setResults);
     socket.on(EVENTS.errorToast, setToast);
@@ -29,6 +36,7 @@ export function useSocket(): void {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off(EVENTS.session, onSession);
+      socket.off(EVENTS.progress, onProgress);
       socket.off(EVENTS.roomSnapshot, setRoom);
       socket.off(EVENTS.roundResults, setResults);
       socket.off(EVENTS.errorToast, setToast);

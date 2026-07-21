@@ -26,6 +26,42 @@ export interface PublicUser {
   avatarUrl: string | null;
 }
 
+/** Statistiques agrégées d'un joueur (profil). */
+export interface PlayerStatsDTO {
+  gamesPlayed: number;
+  gamesWon: number;
+  timesSeeker: number;
+  playersFound: number;
+  hiddenSeconds: number;
+  bestCamouflage: number;
+  avgCamouflage: number;
+  camouflageSamples: number;
+  timesFound: number;
+  avgSurvivalSeconds: number;
+  missedClicks: number;
+  totalClicks: number;
+}
+
+/** Une entrée d'historique de partie. */
+export interface MatchHistoryEntry {
+  matchId: string;
+  mode: string;
+  playedAt: string;
+  score: number;
+  players: number;
+  rounds: number;
+}
+
+/** Profil public partageable. */
+export interface PublicProfile {
+  pseudo: string;
+  level: number;
+  xp: number;
+  avatarUrl: string | null;
+  createdAt: string;
+  stats: PlayerStatsDTO | null;
+}
+
 /** État public d'un joueur (diffusable à tous). */
 export interface PublicPlayer {
   id: string;

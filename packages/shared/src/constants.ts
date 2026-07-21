@@ -39,6 +39,11 @@ export const SCORING = {
   /** Seuil de camouflage (%) donnant un bonus XP. */
   camouflageBonusThreshold: 95,
   camouflageBonusXp: 40,
+  /** XP de partie (#20). */
+  matchXpBase: 20,
+  matchXpPerFind: 6,
+  matchXpPerSurvivalMinute: 8,
+  matchXpWin: 30,
 } as const;
 
 /** Contraintes joueurs par partie. */
@@ -50,8 +55,24 @@ export const LOBBY = {
   codeAlphabet: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789',
 } as const;
 
-/** Progression : XP nécessaire pour atteindre `level` depuis le niveau 1. */
-export const xpForLevel = (level: number): number => Math.floor(100 * Math.pow(level, 1.6));
+/** Progression : XP cumulée nécessaire pour atteindre `level` (niveau 1 = 0 XP requis). */
+export const xpForLevel = (level: number): number =>
+  level <= 1 ? 0 : Math.floor(100 * Math.pow(level - 1, 1.6));
+
+/** Niveau atteint pour un total d'XP (>= 1). */
+export const levelForXp = (xp: number): number => {
+  let level = 1;
+  while (xp >= xpForLevel(level + 1)) level++;
+  return level;
+};
+
+/** XP restante et seuil vers le niveau suivant (pour une barre de progression). */
+export function xpProgress(xp: number): { level: number; inLevel: number; span: number } {
+  const level = levelForXp(xp);
+  const base = xpForLevel(level);
+  const next = xpForLevel(level + 1);
+  return { level, inLevel: xp - base, span: next - base };
+}
 
 /** Modes de jeu. */
 export const GAME_MODES = ['classic', 'everyone-seeks', 'coop', 'blitz', 'ranked'] as const;

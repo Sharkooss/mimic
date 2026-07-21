@@ -1,11 +1,19 @@
 import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { EVENTS } from '@mimic/shared';
+import { EVENTS, GAME_MODES, LOBBY, type GameMode } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
 import { GamePage } from './GamePage.js';
 
-/** Salon d'attente : liste des joueurs, code partageable, lancement (hôte). */
+const MODE_LABELS: Record<GameMode, string> = {
+  classic: 'Classique',
+  'everyone-seeks': 'Tout le monde cherche',
+  coop: 'Coopératif',
+  blitz: 'Blitz',
+  ranked: 'Classé',
+};
+
+/** Salon d'attente : liste des joueurs, code partageable, mode, lancement (hôte). */
 export function LobbyPage(): JSX.Element {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
@@ -22,7 +30,7 @@ export function LobbyPage(): JSX.Element {
   }, [code, room, navigate]);
 
   if (!room) {
-    return <p className="text-center text-stone-500">Connexion au salon…</p>;
+    return <p className="text-center text-muted">Connexion au salon…</p>;
   }
 
   // Partie en cours : on bascule sur l'écran de jeu.
@@ -31,47 +39,84 @@ export function LobbyPage(): JSX.Element {
   }
 
   const me = room.players.find((p) => p.id === myId);
+  const isHost = Boolean(me?.isHost);
+
+  const leave = () => {
+    socket.emit(EVENTS.roomLeave);
+    navigate('/');
+  };
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="animate-fade-in space-y-8">
+      <div className="flex items-start justify-between">
         <div>
-          <div className="text-sm text-stone-500">Code du salon</div>
+          <div className="text-sm text-muted">Code du salon</div>
           <div className="font-mono text-3xl font-bold tracking-[0.3em]">{room.code}</div>
         </div>
-        <span className="rounded-full bg-stone-100 px-3 py-1 text-sm capitalize">{room.mode}</span>
+        <button onClick={leave} className="text-sm text-muted hover:text-ink">
+          Quitter
+        </button>
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-stone-500">
-          Joueurs ({room.players.length}/{16})
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+          Mode de jeu
+        </h2>
+        <div className="flex flex-wrap gap-2">
+          {GAME_MODES.map((m) => {
+            const active = room.mode === m;
+            return (
+              <button
+                key={m}
+                disabled={!isHost}
+                onClick={() => socket.emit(EVENTS.roomSetMode, { mode: m }, () => undefined)}
+                className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                  active
+                    ? 'bg-accent text-white'
+                    : 'border border-line text-muted hover:border-muted/40 disabled:hover:border-line'
+                } ${!isHost ? 'cursor-default' : ''}`}
+              >
+                {MODE_LABELS[m]}
+              </button>
+            );
+          })}
+        </div>
+        {!isHost && <p className="mt-1 text-xs text-muted">Seul l’hôte peut changer le mode.</p>}
+      </div>
+
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
+          Joueurs ({room.players.length}/{LOBBY.maxPlayers})
         </h2>
         <ul className="space-y-2">
           {room.players.map((p) => (
             <li
               key={p.id}
-              className="flex items-center justify-between rounded-xl border border-stone-200 bg-white px-4 py-3"
+              className={`flex items-center justify-between rounded-xl border px-4 py-3 ${
+                p.connected ? 'border-line bg-surface' : 'border-line bg-canvas opacity-60'
+              }`}
             >
               <span className="font-medium">
                 {p.pseudo}
                 {p.id === myId && <span className="ml-2 text-xs text-accent">(toi)</span>}
+                {!p.connected && <span className="ml-2 text-xs text-muted">déconnecté…</span>}
               </span>
-              {p.isHost && <span className="text-xs text-stone-400">hôte</span>}
+              {p.isHost && <span className="text-xs text-muted">hôte</span>}
             </li>
           ))}
         </ul>
       </div>
 
-      {me?.isHost ? (
+      {isHost ? (
         <button
-          disabled={room.players.length < 2}
-          className="w-full rounded-xl bg-accent py-3 font-semibold text-white disabled:opacity-40"
+          disabled={room.players.length < LOBBY.minPlayers}
+          className="w-full rounded-xl bg-accent py-3 font-semibold text-white shadow-soft transition hover:bg-accent-dark disabled:opacity-40"
           onClick={() => socket.emit(EVENTS.roomStart, () => undefined)}
         >
-          {room.players.length < 2 ? 'En attente de joueurs…' : 'Lancer la partie'}
+          {room.players.length < LOBBY.minPlayers ? 'En attente de joueurs…' : 'Lancer la partie'}
         </button>
       ) : (
-        <p className="text-center text-sm text-stone-500">En attente du lancement par l'hôte…</p>
+        <p className="text-center text-sm text-muted">En attente du lancement par l’hôte…</p>
       )}
     </div>
   );

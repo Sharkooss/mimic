@@ -1,4 +1,4 @@
-import type { PublicUser } from '@mimic/shared';
+import type { MatchHistoryEntry, PlayerStatsDTO, PublicProfile, PublicUser } from '@mimic/shared';
 import { refreshSocketAuth } from './socket.js';
 
 /** Stockage du jeton de compte + appels d'API d'authentification (#5). */
@@ -73,6 +73,32 @@ export async function fetchMe(): Promise<PublicUser | null> {
   }
   const data = (await res.json()) as { user: PublicUser };
   return data.user;
+}
+
+async function authGet<T>(path: string): Promise<T> {
+  const token = getAuthToken();
+  const res = await fetch(path, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Erreur.');
+  return data as T;
+}
+
+export async function getMyStats(): Promise<PlayerStatsDTO | null> {
+  return (await authGet<{ stats: PlayerStatsDTO | null }>('/api/me/stats')).stats;
+}
+
+export async function getMyHistory(offset = 0): Promise<MatchHistoryEntry[]> {
+  return (await authGet<{ history: MatchHistoryEntry[] }>(`/api/me/history?offset=${offset}`))
+    .history;
+}
+
+export async function getProfile(pseudo: string): Promise<PublicProfile> {
+  const res = await fetch(`/api/users/${encodeURIComponent(pseudo)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Joueur introuvable.');
+  return (data as { profile: PublicProfile }).profile;
 }
 
 /** Indique si le serveur propose les comptes (base configurée). */

@@ -1,6 +1,16 @@
+import type { Server } from 'socket.io';
+import {
+  EVENTS,
+  SCORING,
+  levelForXp,
+  type ClientToServerEvents,
+  type ServerToClientEvents,
+} from '@mimic/shared';
 import { prisma } from '../db.js';
 import { ARTWORKS } from './artworks.js';
 import type { Room, ServerPlayer } from './rooms.js';
+
+type IO = Server<ClientToServerEvents, ServerToClientEvents>;
 
 /**
  * Persistance des parties (#18). Best-effort : toute erreur est capturée et ne
@@ -37,7 +47,7 @@ export async function seedArtworks(): Promise<void> {
 }
 
 /** Écrit une partie terminée (Match + participants + manches) et met à jour les stats. */
-export async function persistMatch(room: Room): Promise<void> {
+export async function persistMatch(io: IO, room: Room): Promise<void> {
   if (!prisma) return;
   const players = [...room.players.values()];
   if (players.length === 0 || room.totalRounds === 0) return;
@@ -77,12 +87,40 @@ export async function persistMatch(room: Room): Promise<void> {
       },
     });
 
-    // Stats agrégées des joueurs authentifiés.
+    // Stats + XP des joueurs authentifiés.
     for (const p of players) {
-      if (p.userId) await updatePlayerStats(p, p.score === topScore && topScore > 0);
+      if (!p.userId) continue;
+      const won = p.score === topScore && topScore > 0;
+      await updatePlayerStats(p, won);
+      await awardXp(io, p, won);
     }
   } catch (e) {
     console.error('⚠  persistMatch :', e instanceof Error ? e.message : e);
+  }
+}
+
+/** Calcule et attribue l'XP de partie, met à jour le niveau et notifie le joueur (#20). */
+async function awardXp(io: IO, p: ServerPlayer, won: boolean): Promise<void> {
+  if (!prisma || !p.userId) return;
+  const s = p.matchStats;
+  const gained =
+    SCORING.matchXpBase +
+    s.foundAsSeeker * SCORING.matchXpPerFind +
+    Math.round((s.survivalMs / 60000) * SCORING.matchXpPerSurvivalMinute) +
+    (s.camoBest >= SCORING.camouflageBonusThreshold ? SCORING.camouflageBonusXp : 0) +
+    (won ? SCORING.matchXpWin : 0);
+
+  const user = await prisma.user.findUnique({
+    where: { id: p.userId },
+    select: { xp: true, level: true },
+  });
+  if (!user) return;
+  const xp = user.xp + gained;
+  const level = levelForXp(xp);
+  await prisma.user.update({ where: { id: p.userId }, data: { xp, level } });
+
+  if (p.socketId) {
+    io.to(p.socketId).emit(EVENTS.progress, { gained, xp, level, leveledUp: level > user.level });
   }
 }
 

@@ -4,12 +4,14 @@ import {
   CHARACTER_SIZE,
   EVENTS,
   HIT_RADIUS,
+  LOBBY,
   WRONG_CLICK_COOLDOWN_MS,
   createRoomSchema,
   joinRoomSchema,
   lockCharacterSchema,
   placementSchema,
   seekerClickSchema,
+  setModeSchema,
   type ClientToServerEvents,
   type ServerToClientEvents,
 } from '@mimic/shared';
@@ -108,10 +110,28 @@ export function setupSocket(
       const room = getRoom(parsed.data.code);
       if (!room) return ack({ ok: false, error: 'Salon introuvable.' });
       if (room.phase !== 'lobby') return ack({ ok: false, error: 'La partie a déjà commencé.' });
+      if (room.players.size >= LOBBY.maxPlayers) {
+        return ack({ ok: false, error: 'Salon complet.' });
+      }
 
       addPlayer(room, socket, false);
       broadcastSnapshot(io, room);
       ack({ ok: true, code: room.code });
+    });
+
+    socket.on(EVENTS.roomSetMode, (payload, ack) => {
+      const code = socket.data.roomCode;
+      const room = code ? getRoom(code) : undefined;
+      if (!room) return ack({ ok: false, error: 'Salon introuvable.' });
+      if (room.phase !== 'lobby') return ack({ ok: false, error: 'La partie a déjà commencé.' });
+      if (room.hostId !== socket.data.playerId) {
+        return ack({ ok: false, error: "Seul l'hôte peut changer le mode." });
+      }
+      const parsed = setModeSchema.safeParse(payload);
+      if (!parsed.success) return ack({ ok: false, error: 'Mode invalide.' });
+      room.mode = parsed.data.mode;
+      broadcastSnapshot(io, room);
+      ack({ ok: true });
     });
 
     socket.on(EVENTS.roomStart, (ack) => {
