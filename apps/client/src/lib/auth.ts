@@ -1,4 +1,11 @@
-import type { MatchHistoryEntry, PlayerStatsDTO, PublicProfile, PublicUser } from '@mimic/shared';
+import type {
+  LeaderboardEntry,
+  LeaderboardSort,
+  MatchHistoryEntry,
+  PlayerStatsDTO,
+  PublicProfile,
+  PublicUser,
+} from '@mimic/shared';
 import { refreshSocketAuth } from './socket.js';
 
 /** Stockage du jeton de compte + appels d'API d'authentification (#5). */
@@ -92,6 +99,13 @@ export async function getMyStats(): Promise<PlayerStatsDTO | null> {
 export async function getMyHistory(offset = 0): Promise<MatchHistoryEntry[]> {
   return (await authGet<{ history: MatchHistoryEntry[] }>(`/api/me/history?offset=${offset}`))
     .history;
+}
+
+export async function getLeaderboard(sort: LeaderboardSort = 'xp'): Promise<LeaderboardEntry[]> {
+  const res = await fetch(`/api/leaderboard?sort=${sort}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Erreur.');
+  return (data as { leaderboard: LeaderboardEntry[] }).leaderboard;
 }
 
 export async function getProfile(pseudo: string): Promise<PublicProfile> {

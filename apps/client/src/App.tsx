@@ -9,11 +9,14 @@ import { HomePage } from './pages/HomePage.js';
 import { LobbyPage } from './pages/LobbyPage.js';
 import { PaintPage } from './pages/PaintPage.js';
 import { ProfilePage } from './pages/ProfilePage.js';
+import { LeaderboardPage } from './pages/LeaderboardPage.js';
+import { PublicProfilePage } from './pages/PublicProfilePage.js';
 
 export default function App(): JSX.Element {
   useSocket();
   const connected = useGameStore((s) => s.connected);
   const user = useAuthStore((s) => s.user);
+  const enabled = useAuthStore((s) => s.enabled);
   const setUser = useAuthStore((s) => s.setUser);
   const setEnabled = useAuthStore((s) => s.setEnabled);
   const setReady = useAuthStore((s) => s.setReady);
@@ -40,6 +43,14 @@ export default function App(): JSX.Element {
           <Wordmark />
         </Link>
         <div className="flex items-center gap-3">
+          {enabled && (
+            <Link
+              to="/leaderboard"
+              className="rounded-full px-2 py-1 text-sm font-medium text-muted transition hover:bg-line/60 hover:text-ink"
+            >
+              🏅 Classement
+            </Link>
+          )}
           {user && (
             <span className="flex items-center gap-2 text-sm">
               <Link
@@ -77,6 +88,8 @@ export default function App(): JSX.Element {
           <Route path="/" element={<HomePage />} />
           <Route path="/room/:code" element={<LobbyPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/leaderboard" element={<LeaderboardPage />} />
+          <Route path="/u/:pseudo" element={<PublicProfilePage />} />
           <Route path="/paint" element={<PaintPage />} />
         </Routes>
       </main>

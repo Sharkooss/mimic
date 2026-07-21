@@ -70,6 +70,23 @@ export interface MatchHistoryEntry {
   rounds: number;
 }
 
+/** Critères de tri du classement global (#24). */
+export const LEADERBOARD_SORTS = ['xp', 'wins', 'found', 'camo'] as const;
+export type LeaderboardSort = (typeof LEADERBOARD_SORTS)[number];
+
+/** Une ligne du classement global. */
+export interface LeaderboardEntry {
+  rank: number;
+  pseudo: string;
+  level: number;
+  xp: number;
+  gamesPlayed: number;
+  gamesWon: number;
+  playersFound: number;
+  bestCamouflage: number;
+  avgCamouflage: number;
+}
+
 /** Profil public partageable. */
 export interface PublicProfile {
   pseudo: string;

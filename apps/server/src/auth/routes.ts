@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { PublicUser } from '@mimic/shared';
+import { LEADERBOARD_SORTS, type LeaderboardEntry, type PublicUser } from '@mimic/shared';
 import { prisma } from '../db.js';
 import { hashPassword, signToken, verifyPassword, verifyToken } from './tokens.js';
 
@@ -27,6 +27,15 @@ interface UserRow {
   level: number;
   xp: number;
   avatarUrl: string | null;
+}
+
+/** Champs de stats utilisés par le classement (sous-ensemble de PlayerStats). */
+interface StatsShape {
+  gamesPlayed: number;
+  gamesWon: number;
+  playersFound: number;
+  bestCamouflage: number;
+  avgCamouflage: number;
 }
 
 const publicUser = (u: UserRow): PublicUser => ({
@@ -123,6 +132,52 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         stats: statsDto,
       },
     };
+  });
+
+  // Classement global public (#24). Tri par XP (défaut), victoires, joueurs
+  // trouvés (talent de chercheur) ou meilleur camouflage. Sans base : liste vide
+  // (200) pour que la page s'affiche proprement.
+  app.get<{ Querystring: { sort?: string; limit?: string } }>('/api/leaderboard', async (req) => {
+    const sort = (LEADERBOARD_SORTS as readonly string[]).includes(req.query.sort ?? '')
+      ? (req.query.sort as (typeof LEADERBOARD_SORTS)[number])
+      : 'xp';
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 50) || 50));
+    if (!prisma) return { leaderboard: [] as LeaderboardEntry[], sort };
+
+    let rows: Array<{ user: UserRow; stats: StatsShape | null }>;
+    if (sort === 'xp') {
+      // Classement par progression : tout le monde (même sans partie jouée).
+      const users = await prisma.user.findMany({
+        orderBy: [{ xp: 'desc' }, { createdAt: 'asc' }],
+        take: limit,
+        include: { stats: true },
+      });
+      rows = users.map((u) => ({ user: u, stats: u.stats }));
+    } else {
+      // Classements de performance : uniquement les joueurs ayant joué.
+      const field =
+        sort === 'wins' ? 'gamesWon' : sort === 'found' ? 'playersFound' : 'bestCamouflage';
+      const stats = await prisma.playerStats.findMany({
+        where: { gamesPlayed: { gt: 0 } },
+        orderBy: [{ [field]: 'desc' }, { gamesPlayed: 'desc' }],
+        take: limit,
+        include: { user: true },
+      });
+      rows = stats.map((s) => ({ user: s.user, stats: s }));
+    }
+
+    const leaderboard: LeaderboardEntry[] = rows.map((r, i) => ({
+      rank: i + 1,
+      pseudo: r.user.pseudo,
+      level: r.user.level,
+      xp: r.user.xp,
+      gamesPlayed: r.stats?.gamesPlayed ?? 0,
+      gamesWon: r.stats?.gamesWon ?? 0,
+      playersFound: r.stats?.playersFound ?? 0,
+      bestCamouflage: Math.round(r.stats?.bestCamouflage ?? 0),
+      avgCamouflage: Math.round(r.stats?.avgCamouflage ?? 0),
+    }));
+    return { leaderboard, sort };
   });
 
   // Historique des parties du joueur connecté, paginé (#18/#21).
