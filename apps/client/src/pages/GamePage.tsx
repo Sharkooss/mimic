@@ -11,8 +11,7 @@ import { useGameStore } from '../store/gameStore.js';
 import { useCharacterStore } from '../store/characterStore.js';
 import { useCountdown } from '../hooks/useCountdown.js';
 import { loadCharacterBase } from '../paint/character.js';
-import { CamouflageStage } from '../paint/CamouflageStage.js';
-import { BoardPaintStage } from '../paint/BoardPaintStage.js';
+import { CamouflageBoard } from '../paint/CamouflageBoard.js';
 import { SeekerStage } from '../paint/SeekerStage.js';
 import { ResultsStage } from '../paint/ResultsStage.js';
 
@@ -119,7 +118,6 @@ function PhaseHeader({ room, remaining }: { room: RoomSnapshot; remaining: numbe
  * verrouillage final. Personnage partagé via le store.
  */
 function HiderCamouflage({ room }: { room: RoomSnapshot }) {
-  const [step, setStep] = useState<'place' | 'paint'>('place');
   const [breakdown, setBreakdown] = useState<CamouflageBreakdown | null>(null);
   const [error, setError] = useState<string | null>(null);
   const locked = useCharacterStore((s) => s.locked);
@@ -129,12 +127,11 @@ function HiderCamouflage({ room }: { room: RoomSnapshot }) {
   if (resetRound.current !== room.round) {
     resetRound.current = room.round;
     useCharacterStore.getState().reset();
-    setStep('place');
     setBreakdown(null);
     setError(null);
   }
 
-  // Charge la silhouette de base dès la manche (pour la placer avant de peindre).
+  // Charge la silhouette de base dès la manche.
   useEffect(() => {
     const st = useCharacterStore.getState();
     if (st.pixels && st.mask) return;
@@ -173,83 +170,29 @@ function HiderCamouflage({ room }: { room: RoomSnapshot }) {
     <>
       <div>
         <div className="font-semibold">Camoufle-toi !</div>
-        <p className="text-sm text-stone-500">
-          {step === 'place'
-            ? 'Place ton personnage sur le tableau, puis verrouille ta pose.'
-            : 'Capture les couleurs du tableau (pipette 💧 ou palette 🎨) et peins ton personnage pour disparaître.'}
+        <p className="text-sm text-muted">
+          Déplace, puis peins ton personnage pour le fondre dans l’œuvre. Utilise la pipette 💧 (ou{' '}
+          <kbd className="rounded bg-line px-1 text-[11px]">Espace</kbd>) pour capturer les couleurs
+          du tableau.
         </p>
       </div>
 
-      <ol className="flex items-center gap-2 text-sm">
-        <StepPill n={1} label="Placer" active={step === 'place'} done={step === 'paint'} />
-        <span className="text-stone-300">→</span>
-        <StepPill n={2} label="Peindre" active={step === 'paint'} done={locked} />
-      </ol>
+      {room.artwork && <CamouflageBoard artwork={room.artwork} live />}
 
-      {!room.artwork ? null : step === 'place' ? (
-        <>
-          <CamouflageStage artwork={room.artwork} />
-          <button
-            onClick={() => setStep('paint')}
-            className="w-full rounded-xl bg-accent py-3 font-semibold text-white transition hover:brightness-110"
-          >
-            🔒 Verrouiller ma pose et peindre
-          </button>
-        </>
+      {locked && breakdown ? (
+        <BreakdownPanel breakdown={breakdown} />
       ) : (
-        <>
-          <BoardPaintStage artwork={room.artwork} />
-          {locked && breakdown ? (
-            <BreakdownPanel breakdown={breakdown} />
-          ) : (
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                onClick={() => setStep('place')}
-                className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-medium hover:border-stone-300"
-              >
-                ← Repositionner
-              </button>
-              <button
-                onClick={lock}
-                className="flex-1 rounded-xl bg-accent py-3 font-semibold text-white transition hover:brightness-110"
-              >
-                🔒 Verrouiller mon camouflage
-              </button>
-            </div>
-          )}
-          {error && <p className="text-sm text-red-600">{error}</p>}
-        </>
+        <button
+          onClick={lock}
+          className="w-full rounded-xl bg-accent py-3.5 font-semibold text-white shadow-soft transition hover:bg-accent-dark"
+        >
+          🔒 Verrouiller mon camouflage
+        </button>
       )}
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
       <ArtworkCard room={room} />
     </>
-  );
-}
-
-function StepPill({
-  n,
-  label,
-  active,
-  done,
-}: {
-  n: number;
-  label: string;
-  active: boolean;
-  done: boolean;
-}) {
-  return (
-    <li
-      className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-medium ${
-        active
-          ? 'bg-accent text-white'
-          : done
-            ? 'bg-emerald-100 text-emerald-700'
-            : 'bg-stone-100 text-stone-500'
-      }`}
-    >
-      <span className="font-mono">{done && !active ? '✓' : n}</span>
-      {label}
-    </li>
   );
 }
 

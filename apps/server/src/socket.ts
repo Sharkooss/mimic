@@ -10,6 +10,7 @@ import {
   joinRoomSchema,
   lockCharacterSchema,
   placementSchema,
+  presenceUpdateSchema,
   seekerClickSchema,
   setModeSchema,
   type ClientToServerEvents,
@@ -155,6 +156,29 @@ export function setupSocket(
       const parsed = placementSchema.safeParse(payload);
       if (!parsed.success) return;
       player.placement = { ...parsed.data, locked: false };
+    });
+
+    // Présence temps réel : relayée UNIQUEMENT aux autres cachés (jamais au chercheur).
+    socket.on(EVENTS.presenceUpdate, (payload) => {
+      const code = socket.data.roomCode;
+      const room = code ? getRoom(code) : undefined;
+      if (!room || room.phase !== 'camouflage') return;
+      const player = room.players.get(socket.data.playerId);
+      if (!player || player.role !== 'hider') return;
+      const parsed = presenceUpdateSchema.safeParse(payload);
+      if (!parsed.success) return;
+      const data = {
+        playerId: player.id,
+        pseudo: player.pseudo,
+        x: parsed.data.x,
+        y: parsed.data.y,
+        rotation: parsed.data.rotation,
+        pixels: parsed.data.pixels,
+      };
+      for (const other of room.players.values()) {
+        if (other.id === player.id || other.role !== 'hider' || !other.socketId) continue;
+        io.to(other.socketId).emit(EVENTS.presence, data);
+      }
     });
 
     socket.on(EVENTS.characterLock, (payload, ack) => {

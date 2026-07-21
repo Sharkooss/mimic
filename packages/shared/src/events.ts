@@ -40,6 +40,18 @@ export const seekerClickSchema = z.object({
 
 export const setModeSchema = z.object({ mode: z.enum(GAME_MODES) });
 
+export const presenceUpdateSchema = z.object({
+  x: z.number().finite(),
+  y: z.number().finite(),
+  rotation: z.union([
+    z.literal(CHARACTER_ROTATIONS[0]),
+    z.literal(CHARACTER_ROTATIONS[1]),
+    z.literal(CHARACTER_ROTATIONS[2]),
+    z.literal(CHARACTER_ROTATIONS[3]),
+  ]),
+  pixels: z.array(z.number().int().min(0).max(255)).length(CHARACTER_SIZE * CHARACTER_SIZE * 4),
+});
+
 export type CreateRoomPayload = z.infer<typeof createRoomSchema>;
 export type JoinRoomPayload = z.infer<typeof joinRoomSchema>;
 export type PlacementPayload = z.infer<typeof placementSchema>;
@@ -61,6 +73,13 @@ export interface ClientToServerEvents {
   'room:set-mode': (payload: { mode: GameMode }, ack: (res: AckResult) => void) => void;
   'room:start': (ack: (res: AckResult) => void) => void;
   'character:move': (payload: PlacementPayload) => void;
+  /** Présence temps réel pendant le camouflage (relayée aux autres cachés). */
+  'presence:update': (payload: {
+    x: number;
+    y: number;
+    rotation: CharacterRotation;
+    pixels: number[];
+  }) => void;
   'character:lock': (
     payload: LockCharacterPayload,
     ack: (res: AckResult<{ breakdown: CamouflageBreakdown }>) => void,
@@ -96,6 +115,15 @@ export interface ServerToClientEvents {
   session: (data: { playerId: string }) => void;
   /** Progression XP/niveau (fin de partie, joueur connecté). */
   progress: (data: ProgressUpdate) => void;
+  /** Présence d'un autre caché pendant le camouflage (position + apparence). */
+  presence: (data: {
+    playerId: string;
+    pseudo: string;
+    x: number;
+    y: number;
+    rotation: CharacterRotation;
+    pixels: number[];
+  }) => void;
   'room:snapshot': (snapshot: RoomSnapshot) => void;
   'phase:changed': (phase: RoomSnapshot['phase'], phaseEndsAt: number | null) => void;
   'player:found': (data: PlayerFoundReveal) => void;
@@ -137,6 +165,8 @@ export const EVENTS = {
   progress: 'progress',
   roomSnapshot: 'room:snapshot',
   characterMove: 'character:move',
+  presenceUpdate: 'presence:update',
+  presence: 'presence',
   characterLock: 'character:lock',
   seekerClick: 'seeker:click',
   phaseChanged: 'phase:changed',
