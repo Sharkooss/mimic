@@ -2,12 +2,18 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EVENTS, LOBBY, type AckResult } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
+import { useAuthStore } from '../store/authStore.js';
+import { AuthPanel } from '../components/AuthPanel.js';
 
 /** Écran d'accueil : créer un salon ou en rejoindre un via code. */
 export function HomePage(): JSX.Element {
   const navigate = useNavigate();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const authReady = useAuthStore((s) => s.ready);
+  const authEnabled = useAuthStore((s) => s.enabled);
+  const user = useAuthStore((s) => s.user);
+  const showAuth = authReady && authEnabled && !user;
 
   const createRoom = () => {
     socket.emit(EVENTS.roomCreate, { mode: 'classic' }, (res: AckResult<{ code: string }>) => {
@@ -31,6 +37,15 @@ export function HomePage(): JSX.Element {
           Peignez votre personnage, cachez-vous dans une œuvre, et débusquez les autres.
         </p>
       </section>
+
+      {showAuth && (
+        <div className="mx-auto max-w-sm">
+          <AuthPanel />
+          <p className="mt-2 text-center text-xs text-stone-400">
+            Optionnel : joue en invité ou crée un compte pour garder ta progression.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <button

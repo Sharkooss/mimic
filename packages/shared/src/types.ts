@@ -16,6 +16,16 @@ export interface CharacterPlacement {
   locked: boolean;
 }
 
+/** Compte utilisateur, vue publique (renvoyée au client authentifié). */
+export interface PublicUser {
+  id: string;
+  pseudo: string;
+  email: string;
+  level: number;
+  xp: number;
+  avatarUrl: string | null;
+}
+
 /** État public d'un joueur (diffusable à tous). */
 export interface PublicPlayer {
   id: string;

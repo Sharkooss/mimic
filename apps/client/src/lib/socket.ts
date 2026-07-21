@@ -9,8 +9,22 @@ import { getPlayerToken } from './identity.js';
  */
 export type MimicSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
+function readAuthToken(): string | undefined {
+  try {
+    return localStorage.getItem('mimic:authToken') ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export const socket: MimicSocket = io({
   autoConnect: false,
   transports: ['websocket'],
-  auth: { token: getPlayerToken() },
+  auth: { token: getPlayerToken(), userToken: readAuthToken() },
 });
+
+/** Met à jour l'auth du socket (compte) et reconnecte pour ré-associer le joueur. */
+export function refreshSocketAuth(): void {
+  socket.auth = { token: getPlayerToken(), userToken: readAuthToken() };
+  if (socket.connected) socket.disconnect().connect();
+}

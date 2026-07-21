@@ -6,6 +6,8 @@ import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import { env, isProd } from './env.js';
 import { roomCount } from './game/rooms.js';
+import { hasDatabase } from './db.js';
+import { registerAuthRoutes } from './auth/routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -27,7 +29,10 @@ export async function buildServer(): Promise<FastifyInstance> {
     rooms: roomCount(),
   }));
 
-  app.get('/api/version', async () => ({ name: 'mimic', version: '0.1.0' }));
+  app.get('/api/version', async () => ({ name: 'mimic', version: '0.1.0', accounts: hasDatabase }));
+
+  // Authentification (#5) — actif seulement si une base est configurée.
+  await registerAuthRoutes(app);
 
   // Service du client en production (build Vite).
   const clientDist = resolve(__dirname, env.CLIENT_DIST_PATH);

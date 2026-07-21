@@ -15,6 +15,7 @@ import {
 } from '@mimic/shared';
 import { scoreCamouflage } from './game/camouflage.js';
 import { sampleArtworkBackground } from './game/artworkPixels.js';
+import { verifyToken } from './auth/tokens.js';
 import { env } from './env.js';
 import {
   clearRoomTimer,
@@ -36,6 +37,9 @@ interface SocketData {
   roomCode: string | null;
   playerId: string;
   token: string;
+  /** Compte authentifié (via userToken), sinon null → joueur invité. */
+  userId: string | null;
+  accountPseudo: string | null;
 }
 
 type MimicSocket = Socket<
@@ -64,9 +68,13 @@ export function setupSocket(
 
   io.on('connection', (socket: MimicSocket) => {
     const token = String(socket.handshake.auth?.token ?? '') || socket.id;
+    const userToken = socket.handshake.auth?.userToken;
+    const account = typeof userToken === 'string' ? verifyToken(userToken) : null;
     socket.data.roomCode = null;
     socket.data.token = token;
     socket.data.playerId = socket.id;
+    socket.data.userId = account?.userId ?? null;
+    socket.data.accountPseudo = account?.pseudo ?? null;
 
     // Reconnexion : si ce token correspond à un joueur d'un salon, on le réattache.
     const existing = findByToken(token);
@@ -242,8 +250,8 @@ function addPlayer(room: Room, socket: MimicSocket, isHost: boolean): void {
     socketId: socket.id,
     token: socket.data.token,
     removeTimer: null,
-    userId: null,
-    pseudo: `Joueur-${id.slice(2, 6)}`,
+    userId: socket.data.userId,
+    pseudo: socket.data.accountPseudo ?? `Joueur-${id.slice(2, 6)}`,
     level: 1,
     connected: true,
     isHost,
