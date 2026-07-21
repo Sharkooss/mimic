@@ -1,5 +1,11 @@
 import { useEffect } from 'react';
-import { EVENTS, type ProgressUpdate, type RoomSnapshot, type SeekerTarget } from '@mimic/shared';
+import {
+  EVENTS,
+  type ProgressUpdate,
+  type RoomSnapshot,
+  type SeekerTarget,
+  type UnlockedArtwork,
+} from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
 import { useAuthStore } from '../store/authStore.js';
@@ -23,6 +29,14 @@ export function useSocket(): void {
       if (auth.user) auth.setUser({ ...auth.user, xp: p.xp, level: p.level });
       setToast(p.leveledUp ? `🎉 Niveau ${p.level} atteint ! +${p.gained} XP` : `+${p.gained} XP`);
     };
+    const onGalleryUnlocked = ({ artworks }: { artworks: UnlockedArtwork[] }) => {
+      if (artworks.length === 0) return;
+      setToast(
+        artworks.length === 1
+          ? `🖼️ Nouvelle œuvre dans ta galerie : ${artworks[0]!.title}`
+          : `🖼️ ${artworks.length} nouvelles œuvres dans ta galerie !`,
+      );
+    };
     // Cibles du chercheur : listener persistant (l'event précède le montage de la vue).
     const onTargets = (targets: SeekerTarget[]) =>
       useGameStore.getState().setSeekerTargets(targets);
@@ -39,6 +53,7 @@ export function useSocket(): void {
     socket.on('disconnect', onDisconnect);
     socket.on(EVENTS.session, onSession);
     socket.on(EVENTS.progress, onProgress);
+    socket.on(EVENTS.galleryUnlocked, onGalleryUnlocked);
     socket.on(EVENTS.seekingTargets, onTargets);
     socket.on(EVENTS.seekerCursor, onCursor);
     socket.on(EVENTS.roomSnapshot, onRoom);
@@ -50,6 +65,7 @@ export function useSocket(): void {
       socket.off('disconnect', onDisconnect);
       socket.off(EVENTS.session, onSession);
       socket.off(EVENTS.progress, onProgress);
+      socket.off(EVENTS.galleryUnlocked, onGalleryUnlocked);
       socket.off(EVENTS.seekingTargets, onTargets);
       socket.off(EVENTS.seekerCursor, onCursor);
       socket.off(EVENTS.roomSnapshot, onRoom);

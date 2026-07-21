@@ -13,6 +13,7 @@ import type {
   CharacterPlacement,
   RoomListing,
   RoomSnapshot,
+  UnlockedArtwork,
 } from './types.js';
 
 /* -------------------------------------------------------------------------- */
@@ -171,6 +172,8 @@ export interface ServerToClientEvents {
   session: (data: { playerId: string }) => void;
   /** Progression XP/niveau (fin de partie, joueur connecté). */
   progress: (data: ProgressUpdate) => void;
+  /** Œuvres ajoutées à la galerie du joueur en fin de partie (nouvelles découvertes). */
+  'gallery:unlocked': (data: { artworks: UnlockedArtwork[] }) => void;
   /** Liste des salons publics (poussée aux clients qui parcourent le lobby). */
   'rooms:public': (rooms: RoomListing[]) => void;
   /** Personnages cachés (camouflés) envoyés au chercheur au début de la recherche. */
@@ -229,6 +232,7 @@ export const EVENTS = {
   publicRooms: 'rooms:public',
   session: 'session',
   progress: 'progress',
+  galleryUnlocked: 'gallery:unlocked',
   roomSnapshot: 'room:snapshot',
   characterMove: 'character:move',
   presenceUpdate: 'presence:update',

@@ -1,4 +1,5 @@
 import type {
+  CollectedArtwork,
   LeaderboardEntry,
   LeaderboardSort,
   MatchHistoryEntry,
@@ -7,6 +8,16 @@ import type {
   PublicUser,
 } from '@mimic/shared';
 import { refreshSocketAuth } from './socket.js';
+
+/** Œuvre du catalogue (vitrine / galerie). */
+export interface CatalogueArtwork {
+  id: string;
+  title: string;
+  author: string;
+  year: string | null;
+  imageUrl: string;
+  difficulty: number;
+}
 
 /** Stockage du jeton de compte + appels d'API d'authentification (#5). */
 
@@ -99,6 +110,18 @@ export async function getMyStats(): Promise<PlayerStatsDTO | null> {
 export async function getMyHistory(offset = 0): Promise<MatchHistoryEntry[]> {
   return (await authGet<{ history: MatchHistoryEntry[] }>(`/api/me/history?offset=${offset}`))
     .history;
+}
+
+/** Catalogue complet des œuvres (public). */
+export async function getArtworks(): Promise<CatalogueArtwork[]> {
+  const res = await fetch('/api/artworks');
+  const data = await res.json().catch(() => ({}));
+  return (data as { artworks?: CatalogueArtwork[] }).artworks ?? [];
+}
+
+/** Galerie personnelle : œuvres collectées + taille du catalogue. */
+export async function getMyGallery(): Promise<{ collected: CollectedArtwork[]; total: number }> {
+  return authGet<{ collected: CollectedArtwork[]; total: number }>('/api/me/gallery');
 }
 
 export async function getLeaderboard(sort: LeaderboardSort = 'xp'): Promise<LeaderboardEntry[]> {

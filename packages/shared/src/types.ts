@@ -87,6 +87,21 @@ export interface LeaderboardEntry {
   avgCamouflage: number;
 }
 
+/** Une œuvre collectée dans la galerie personnelle (jouée au moins une fois). */
+export interface CollectedArtwork {
+  artworkId: string;
+  timesPlayed: number;
+  firstSeenAt: string;
+}
+
+/** Œuvre nouvellement débloquée (notifiée en fin de partie). */
+export interface UnlockedArtwork {
+  id: string;
+  title: string;
+  author: string;
+  imageUrl: string;
+}
+
 /** Profil public partageable. */
 export interface PublicProfile {
   pseudo: string;

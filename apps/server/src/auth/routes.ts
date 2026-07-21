@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { LEADERBOARD_SORTS, type LeaderboardEntry, type PublicUser } from '@mimic/shared';
 import { prisma } from '../db.js';
+import { ARTWORKS } from '../game/artworks.js';
 import { hashPassword, signToken, verifyPassword, verifyToken } from './tokens.js';
 
 const registerSchema = z.object({
@@ -101,6 +102,26 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return reply.code(401).send({ error: 'Compte introuvable.' });
     return { user: publicUser(user) };
+  });
+
+  // Galerie personnelle : œuvres collectées en jouant dessus (+ taille du catalogue).
+  app.get('/api/me/gallery', async (req, reply) => {
+    if (!prisma) return noDb(reply);
+    const userId = userIdFromAuthHeader(req.headers.authorization);
+    if (!userId) return reply.code(401).send({ error: 'Non authentifié.' });
+    const rows = await prisma.userArtwork.findMany({
+      where: { userId },
+      orderBy: { firstSeenAt: 'asc' },
+      select: { artworkId: true, timesPlayed: true, firstSeenAt: true },
+    });
+    return {
+      collected: rows.map((r) => ({
+        artworkId: r.artworkId,
+        timesPlayed: r.timesPlayed,
+        firstSeenAt: r.firstSeenAt,
+      })),
+      total: ARTWORKS.length,
+    };
   });
 
   // Statistiques agrégées du joueur connecté (#18/#19).

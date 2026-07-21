@@ -11,6 +11,7 @@ import { PaintPage } from './pages/PaintPage.js';
 import { ProfilePage } from './pages/ProfilePage.js';
 import { LeaderboardPage } from './pages/LeaderboardPage.js';
 import { PublicProfilePage } from './pages/PublicProfilePage.js';
+import { GalleryPage } from './pages/GalleryPage.js';
 
 export default function App(): JSX.Element {
   useSocket();
@@ -65,6 +66,14 @@ export default function App(): JSX.Element {
             </Link>
           )}
           {user && (
+            <Link
+              to="/gallery"
+              className="rounded-full px-2 py-1 text-sm font-medium text-muted transition hover:bg-line/60 hover:text-ink"
+            >
+              🖼️ Galerie
+            </Link>
+          )}
+          {user && (
             <span className="flex items-center gap-2 text-sm">
               <Link
                 to="/profile"
@@ -102,6 +111,7 @@ export default function App(): JSX.Element {
           <Route path="/room/:code" element={<LobbyPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
+          <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/u/:pseudo" element={<PublicProfilePage />} />
           <Route path="/paint" element={<PaintPage />} />
         </Routes>

@@ -46,6 +46,31 @@ export async function seedArtworks(): Promise<void> {
   }
 }
 
+/**
+ * Rétro-remplit la galerie des joueurs depuis l'historique des parties (une fois,
+ * idempotent). Permet aux comptes existants de retrouver leurs œuvres déjà jouées
+ * sans avoir à rejouer. `ON CONFLICT DO NOTHING` : ne touche jamais aux entrées
+ * déjà présentes (dont les compteurs mis à jour en direct).
+ */
+export async function backfillGalleries(): Promise<void> {
+  if (!prisma) return;
+  try {
+    const n = await prisma.$executeRawUnsafe(`
+      INSERT INTO "UserArtwork" ("userId", "artworkId", "timesPlayed", "firstSeenAt", "lastSeenAt")
+      SELECT mp."userId", mr."artworkId", COUNT(*)::int, MIN(m."createdAt"), MAX(m."createdAt")
+      FROM "MatchParticipant" mp
+      JOIN "Match" m ON m.id = mp."matchId"
+      JOIN "MatchRound" mr ON mr."matchId" = m.id
+      WHERE mp."userId" IS NOT NULL AND mr."artworkId" IS NOT NULL
+      GROUP BY mp."userId", mr."artworkId"
+      ON CONFLICT ("userId", "artworkId") DO NOTHING
+    `);
+    if (n > 0) console.log(`✓ Galeries rétro-remplies (${n} entrées).`);
+  } catch (e) {
+    console.error('⚠  backfillGalleries :', e instanceof Error ? e.message : e);
+  }
+}
+
 /** Écrit une partie terminée (Match + participants + manches) et met à jour les stats. */
 export async function persistMatch(io: IO, room: Room): Promise<void> {
   if (!prisma) return;
@@ -87,15 +112,55 @@ export async function persistMatch(io: IO, room: Room): Promise<void> {
       },
     });
 
-    // Stats + XP des joueurs authentifiés.
+    // Œuvres réellement jouées cette partie (distinctes, présentes en base).
+    const playedArtworkIds = [...new Set(rounds.map((a) => a.id).filter((id) => known.has(id)))];
+
+    // Stats + XP + galerie des joueurs authentifiés.
     for (const p of players) {
       if (!p.userId) continue;
       const won = p.score === topScore && topScore > 0;
       await updatePlayerStats(p, won);
       await awardXp(io, p, won);
+      await recordGallery(io, p, playedArtworkIds);
     }
   } catch (e) {
     console.error('⚠  persistMatch :', e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * Ajoute les œuvres jouées à la galerie du joueur (une entrée par œuvre, compteur
+ * incrémenté). Notifie le joueur des œuvres NOUVELLEMENT découvertes cette partie.
+ */
+async function recordGallery(io: IO, p: ServerPlayer, artworkIds: string[]): Promise<void> {
+  if (!prisma || !p.userId || artworkIds.length === 0) return;
+  // Déjà possédées → pour distinguer les nouvelles découvertes.
+  const owned = new Set(
+    (
+      await prisma.userArtwork.findMany({
+        where: { userId: p.userId, artworkId: { in: artworkIds } },
+        select: { artworkId: true },
+      })
+    ).map((r) => r.artworkId),
+  );
+
+  for (const artworkId of artworkIds) {
+    await prisma.userArtwork.upsert({
+      where: { userId_artworkId: { userId: p.userId, artworkId } },
+      update: { timesPlayed: { increment: 1 } },
+      create: { userId: p.userId, artworkId },
+    });
+  }
+
+  const newIds = artworkIds.filter((id) => !owned.has(id));
+  if (newIds.length > 0 && p.socketId) {
+    const artworks = ARTWORKS.filter((a) => newIds.includes(a.id)).map((a) => ({
+      id: a.id,
+      title: a.title,
+      author: a.author,
+      imageUrl: a.imageUrl,
+    }));
+    io.to(p.socketId).emit(EVENTS.galleryUnlocked, { artworks });
   }
 }
 
