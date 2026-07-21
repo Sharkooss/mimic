@@ -4,22 +4,14 @@ import {
   EVENTS,
   GAME_MODES,
   LOBBY,
+  MODE_META,
   PHASE_BOUNDS,
-  type GameMode,
   type RoomSettings,
 } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
 import { Button, Card } from '../components/ui.js';
 import { GamePage } from './GamePage.js';
-
-const MODE_LABELS: Record<GameMode, string> = {
-  classic: 'Classique',
-  'everyone-seeks': 'Tout le monde cherche',
-  coop: 'Coopératif',
-  blitz: 'Blitz',
-  ranked: 'Classé',
-};
 
 /** Salon d'attente : liste des joueurs, code partageable, mode, lancement (hôte). */
 export function LobbyPage(): JSX.Element {
@@ -90,23 +82,32 @@ export function LobbyPage(): JSX.Element {
         </h2>
         <div className="flex flex-wrap gap-2">
           {GAME_MODES.map((m) => {
+            const meta = MODE_META[m];
             const active = room.mode === m;
+            const locked = !meta.implemented;
             return (
               <button
                 key={m}
-                disabled={!isHost}
+                disabled={!isHost || locked}
+                title={locked ? meta.blurb : undefined}
                 onClick={() => socket.emit(EVENTS.roomSetMode, { mode: m }, () => undefined)}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
                   active
                     ? 'bg-accent text-white'
                     : 'border border-line text-muted hover:border-muted/40 disabled:hover:border-line'
-                } ${!isHost ? 'cursor-default' : ''}`}
+                } ${locked ? 'cursor-not-allowed opacity-50' : !isHost ? 'cursor-default' : ''}`}
               >
-                {MODE_LABELS[m]}
+                {meta.label}
+                {locked && (
+                  <span className="rounded-full bg-line px-1.5 py-px text-[9px] uppercase tracking-wide text-muted">
+                    bientôt
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
+        <p className="mt-2 text-xs text-muted">{MODE_META[room.mode].blurb}</p>
         {!isHost && <p className="mt-1 text-xs text-muted">Seul l’hôte peut changer le mode.</p>}
       </div>
 

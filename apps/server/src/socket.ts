@@ -4,6 +4,7 @@ import {
   CHARACTER_SIZE,
   EVENTS,
   LOBBY,
+  MODE_META,
   WRONG_CLICK_COOLDOWN_MS,
   createRoomSchema,
   joinRoomSchema,
@@ -92,6 +93,9 @@ export function setupSocket(
     socket.on(EVENTS.roomCreate, (payload, ack) => {
       const parsed = createRoomSchema.safeParse(payload);
       if (!parsed.success) return ack({ ok: false, error: 'Paramètres invalides.' });
+      if (!MODE_META[parsed.data.mode].implemented) {
+        return ack({ ok: false, error: "Ce mode n'est pas encore disponible." });
+      }
 
       const room = createRoom(parsed.data.mode, parsed.data.visibility);
       addPlayer(room, socket, true);
@@ -143,7 +147,13 @@ export function setupSocket(
       }
       const parsed = setModeSchema.safeParse(payload);
       if (!parsed.success) return ack({ ok: false, error: 'Mode invalide.' });
+      if (!MODE_META[parsed.data.mode].implemented) {
+        return ack({ ok: false, error: "Ce mode n'est pas encore disponible." });
+      }
       room.mode = parsed.data.mode;
+      // Changer de mode réaligne les durées sur son preset (l'hôte peut ensuite
+      // les ré-ajuster au curseur).
+      room.settings = { ...MODE_META[parsed.data.mode].durations };
       broadcastSnapshot(io, room);
       broadcastLobby(io);
       ack({ ok: true });

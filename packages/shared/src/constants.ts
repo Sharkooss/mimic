@@ -90,6 +90,60 @@ export function xpProgress(xp: number): { level: number; inLevel: number; span: 
 export const GAME_MODES = ['classic', 'everyone-seeks', 'coop', 'blitz', 'ranked'] as const;
 export type GameMode = (typeof GAME_MODES)[number];
 
+/** Métadonnées et réglages par défaut de chaque mode (#28). */
+export interface ModeMeta {
+  label: string;
+  /** Courte description affichée dans le lobby. */
+  blurb: string;
+  /** false = mode annoncé mais pas encore jouable (non sélectionnable). */
+  implemented: boolean;
+  /** Durées de phase par défaut appliquées quand on choisit ce mode. */
+  durations: { camouflageSec: number; seekingSec: number };
+  /** Plafond de manches (null = une manche par joueur, chacun chercheur à son tour). */
+  maxRounds: number | null;
+}
+
+export const MODE_META: Record<GameMode, ModeMeta> = {
+  classic: {
+    label: 'Classique',
+    blurb: 'Chacun devient chercheur à son tour. Une manche par joueur.',
+    implemented: true,
+    durations: { camouflageSec: PHASE_DURATIONS.camouflage, seekingSec: PHASE_DURATIONS.seeking },
+    maxRounds: null,
+  },
+  blitz: {
+    label: 'Blitz',
+    blurb: 'Manches éclair : peinture et traque accélérées, partie en 3 manches max.',
+    implemented: true,
+    durations: { camouflageSec: 20, seekingSec: 45 },
+    maxRounds: 3,
+  },
+  'everyone-seeks': {
+    label: 'Tout le monde cherche',
+    blurb: 'Bientôt : aucun chercheur désigné, tout le monde traque en même temps.',
+    implemented: false,
+    durations: { camouflageSec: PHASE_DURATIONS.camouflage, seekingSec: PHASE_DURATIONS.seeking },
+    maxRounds: null,
+  },
+  coop: {
+    label: 'Coopératif',
+    blurb: 'Bientôt : les cachés marquent des points ensemble contre le chrono.',
+    implemented: false,
+    durations: { camouflageSec: PHASE_DURATIONS.camouflage, seekingSec: PHASE_DURATIONS.seeking },
+    maxRounds: null,
+  },
+  ranked: {
+    label: 'Classé',
+    blurb: 'Bientôt : parties classées avec calcul de rating (ELO).',
+    implemented: false,
+    durations: { camouflageSec: PHASE_DURATIONS.camouflage, seekingSec: PHASE_DURATIONS.seeking },
+    maxRounds: null,
+  },
+};
+
+/** Modes réellement jouables (pour l'UI et la validation serveur). */
+export const PLAYABLE_MODES = GAME_MODES.filter((m) => MODE_META[m].implemented);
+
 /** Visibilité d'un salon : public (listé, rejoignable sans code) ou privé (par code). */
 export const ROOM_VISIBILITIES = ['public', 'private'] as const;
 export type RoomVisibility = (typeof ROOM_VISIBILITIES)[number];

@@ -1,18 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EVENTS, LOBBY, type AckResult, type GameMode, type RoomListing } from '@mimic/shared';
+import { EVENTS, LOBBY, MODE_META, type AckResult, type RoomListing } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useAuthStore } from '../store/authStore.js';
 import { AuthPanel } from '../components/AuthPanel.js';
 import { Badge, Button, Card, GalleryStrip, type GalleryItem } from '../components/ui.js';
-
-const MODE_LABELS: Record<GameMode, string> = {
-  classic: 'Classique',
-  'everyone-seeks': 'Tout le monde cherche',
-  coop: 'Coopératif',
-  blitz: 'Blitz',
-  ranked: 'Classé',
-};
 
 /** Écran d'accueil : hero, vitrine d'œuvres, créer (public/privé) / rejoindre / parties publiques. */
 export function HomePage(): JSX.Element {
@@ -183,7 +175,7 @@ export function HomePage(): JSX.Element {
               >
                 <span className="flex items-center gap-3">
                   <span className="font-mono text-lg font-bold tracking-widest">{r.code}</span>
-                  <Badge>{MODE_LABELS[r.mode]}</Badge>
+                  <Badge>{MODE_META[r.mode].label}</Badge>
                   <span className="text-sm text-muted">
                     {r.host} · {r.players}/{r.maxPlayers}
                   </span>

@@ -1,6 +1,6 @@
 import {
   LOBBY,
-  PHASE_DURATIONS,
+  MODE_META,
   type Artwork,
   type CharacterPlacement,
   type GameMode,
@@ -127,10 +127,7 @@ export function createRoom(mode: GameMode, visibility: RoomVisibility = 'private
     seekerId: null,
     phaseEndsAt: null,
     createdAt: Date.now(),
-    settings: {
-      camouflageSec: PHASE_DURATIONS.camouflage,
-      seekingSec: PHASE_DURATIONS.seeking,
-    },
+    settings: { ...MODE_META[mode].durations },
     artwork: null,
     seekingStartedAt: null,
     artworkSequence: [],

@@ -2,6 +2,7 @@ import type { Server } from 'socket.io';
 import {
   EVENTS,
   LOBBY,
+  MODE_META,
   PHASE_DURATIONS,
   SCORING,
   type ClientToServerEvents,
@@ -34,8 +35,13 @@ export function startMatch(io: IO, room: Room): { ok: boolean; error?: string } 
     return { ok: false, error: `Il faut au moins ${LOBBY.minPlayers} joueurs.` };
   }
 
+  // Une manche par joueur (chacun chercheur à son tour), plafonnée selon le mode
+  // (ex. Blitz : 3 manches max pour une partie courte).
   room.seekerOrder = shuffle(ids);
-  room.totalRounds = room.seekerOrder.length;
+  const maxRounds = MODE_META[room.mode].maxRounds;
+  room.totalRounds = maxRounds
+    ? Math.min(room.seekerOrder.length, maxRounds)
+    : room.seekerOrder.length;
   room.artworkSequence = pickArtworkSequence(room.totalRounds);
   room.round = 0;
   for (const p of room.players.values()) {
