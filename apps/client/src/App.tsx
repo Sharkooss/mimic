@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
+import { Images, Medal } from 'lucide-react';
 import { useSocket } from './hooks/useSocket.js';
 import { useGameStore } from './store/gameStore.js';
 import { useAuthStore } from './store/authStore.js';
@@ -60,17 +61,17 @@ export default function App(): JSX.Element {
           {enabled && (
             <Link
               to="/leaderboard"
-              className="rounded-full px-2 py-1 text-sm font-medium text-muted transition hover:bg-line/60 hover:text-ink"
+              className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm font-medium text-muted transition hover:bg-line/60 hover:text-ink"
             >
-              🏅 Classement
+              <Medal className="h-4 w-4" /> Classement
             </Link>
           )}
           {user && (
             <Link
               to="/gallery"
-              className="rounded-full px-2 py-1 text-sm font-medium text-muted transition hover:bg-line/60 hover:text-ink"
+              className="flex items-center gap-1.5 rounded-full px-2 py-1 text-sm font-medium text-muted transition hover:bg-line/60 hover:text-ink"
             >
-              🖼️ Galerie
+              <Images className="h-4 w-4" /> Galerie
             </Link>
           )}
           {user && (

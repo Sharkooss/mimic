@@ -41,8 +41,8 @@ export function PaintPage(): JSX.Element {
       <div>
         <h1 className="text-2xl font-bold">Atelier</h1>
         <p className="text-sm text-muted">
-          Déplace (✋) et peins ton personnage sur le tableau. Pipette 💧 / Espace pour capturer les
-          couleurs de l’œuvre.
+          Déplace et peins ton personnage sur le tableau. Utilise la pipette (ou Espace) pour
+          capturer les couleurs de l’œuvre.
         </p>
       </div>
       {/* Le plateau remplit son conteneur : on lui donne une hauteur d'écran utile. */}

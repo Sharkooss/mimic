@@ -1,3 +1,4 @@
+import { Palette } from 'lucide-react';
 import { CHARACTER_SIZE, type Artwork, type RoundReveal } from '@mimic/shared';
 import { PixelSprite } from './PixelSprite.js';
 import { artworkBg } from './artworkBg.js';
@@ -73,7 +74,9 @@ export function ArtworkFocus({
       <figcaption className="flex items-center justify-between gap-2 px-2.5 py-2">
         <span className="min-w-0 truncate text-sm font-semibold">{reveal.pseudo}</span>
         {reveal.camouflageScore != null && (
-          <span className="shrink-0 font-mono text-xs text-gold">🎨 {reveal.camouflageScore}%</span>
+          <span className="inline-flex shrink-0 items-center gap-1 font-mono text-xs text-gold">
+            <Palette className="h-3 w-3" /> {reveal.camouflageScore}%
+          </span>
         )}
       </figcaption>
     </figure>

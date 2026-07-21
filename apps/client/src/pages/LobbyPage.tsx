@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Globe, Lock, Palette, Search } from 'lucide-react';
 import {
   EVENTS,
   GAME_MODES,
@@ -53,13 +54,21 @@ export function LobbyPage(): JSX.Element {
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-muted">
             Code du salon
             <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-medium normal-case tracking-normal ${
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium normal-case tracking-normal ${
                 room.visibility === 'public'
                   ? 'bg-emerald-100 text-emerald-700'
                   : 'bg-gold-soft text-gold'
               }`}
             >
-              {room.visibility === 'public' ? '🌍 Public' : '🔒 Privé'}
+              {room.visibility === 'public' ? (
+                <>
+                  <Globe className="h-3 w-3" /> Public
+                </>
+              ) : (
+                <>
+                  <Lock className="h-3 w-3" /> Privé
+                </>
+              )}
             </span>
           </div>
           <div className="font-display text-4xl font-bold tracking-[0.28em] text-ink">
@@ -167,7 +176,11 @@ function SettingsPanel({ settings, isHost }: { settings: RoomSettings; isHost: b
       </h2>
       <Card className="space-y-4 p-5">
         <SettingSlider
-          label="🎨 Temps de camouflage"
+          label={
+            <>
+              <Palette className="h-4 w-4 text-muted" /> Temps de camouflage
+            </>
+          }
           value={settings.camouflageSec}
           min={PHASE_BOUNDS.camouflage.min}
           max={PHASE_BOUNDS.camouflage.max}
@@ -175,7 +188,11 @@ function SettingsPanel({ settings, isHost }: { settings: RoomSettings; isHost: b
           onChange={(camouflageSec) => update({ camouflageSec })}
         />
         <SettingSlider
-          label="🔍 Temps de recherche"
+          label={
+            <>
+              <Search className="h-4 w-4 text-muted" /> Temps de recherche
+            </>
+          }
           value={settings.seekingSec}
           min={PHASE_BOUNDS.seeking.min}
           max={PHASE_BOUNDS.seeking.max}
@@ -196,7 +213,7 @@ function SettingSlider({
   disabled,
   onChange,
 }: {
-  label: string;
+  label: ReactNode;
   value: number;
   min: number;
   max: number;
@@ -206,7 +223,7 @@ function SettingSlider({
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-sm font-medium">{label}</span>
+        <span className="flex items-center gap-1.5 text-sm font-medium">{label}</span>
         <span className="font-mono text-sm tabular-nums text-accent">
           {value}
           <span className="ml-0.5 text-xs text-muted">s</span>

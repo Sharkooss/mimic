@@ -1,4 +1,17 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import {
+  Hand,
+  Minus,
+  PaintBucket,
+  Paintbrush,
+  Palette,
+  Pipette,
+  Plus,
+  Redo2,
+  RotateCcw,
+  RotateCw,
+  Undo2,
+} from 'lucide-react';
 import {
   CHARACTER_ROTATIONS,
   CHARACTER_SIZE,
@@ -489,13 +502,17 @@ export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; l
 
           {/* HUD zoom */}
           <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg bg-surface/90 p-1 shadow-soft">
-            <HudBtn onClick={() => zoomBy(1 / 1.3, vp.w / 2, vp.h / 2)}>−</HudBtn>
+            <HudBtn onClick={() => zoomBy(1 / 1.3, vp.w / 2, vp.h / 2)}>
+              <Minus className="h-4 w-4" />
+            </HudBtn>
             <span className="w-9 text-center font-mono text-xs">{cam.zoom.toFixed(1)}×</span>
-            <HudBtn onClick={() => zoomBy(1.3, vp.w / 2, vp.h / 2)}>+</HudBtn>
+            <HudBtn onClick={() => zoomBy(1.3, vp.w / 2, vp.h / 2)}>
+              <Plus className="h-4 w-4" />
+            </HudBtn>
           </div>
           {space && (
-            <div className="pointer-events-none absolute left-3 top-3 rounded-md bg-night/80 px-2 py-1 text-xs text-white">
-              💧 Pipette (Espace) — clique sur le tableau
+            <div className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-night/80 px-2 py-1 text-xs text-white">
+              <Pipette className="h-3.5 w-3.5" /> Pipette (Espace) — clique sur le tableau
             </div>
           )}
         </div>
@@ -536,11 +553,16 @@ interface ToolbarProps {
   canRedo: boolean;
 }
 
-const TOOLS: { id: BoardTool; icon: string; label: string; key: string }[] = [
-  { id: 'move', icon: '✋', label: 'Déplacer', key: 'V' },
-  { id: 'brush', icon: '🖌', label: 'Pinceau', key: 'B' },
-  { id: 'bucket', icon: '🪣', label: 'Pot', key: 'G' },
-  { id: 'pipette', icon: '💧', label: 'Pipette', key: 'E / Espace' },
+const TOOLS: {
+  id: BoardTool;
+  Icon: ComponentType<{ className?: string }>;
+  label: string;
+  key: string;
+}[] = [
+  { id: 'move', Icon: Hand, label: 'Déplacer', key: 'V' },
+  { id: 'brush', Icon: Paintbrush, label: 'Pinceau', key: 'B' },
+  { id: 'bucket', Icon: PaintBucket, label: 'Pot', key: 'G' },
+  { id: 'pipette', Icon: Pipette, label: 'Pipette', key: 'E / Espace' },
 ];
 
 /** Panneau d'outils vertical (colonne de droite du plateau plein écran). */
@@ -561,7 +583,7 @@ function Toolbar(p: ToolbarProps) {
                   : 'border-line hover:border-muted/40'
               }`}
             >
-              <span aria-hidden>{t.icon}</span>
+              <t.Icon className="h-4 w-4" />
               {t.label}
             </button>
           ))}
@@ -569,8 +591,12 @@ function Toolbar(p: ToolbarProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        <HudBtn onClick={() => p.rotate(-1)}>⟲</HudBtn>
-        <HudBtn onClick={() => p.rotate(1)}>⟳</HudBtn>
+        <HudBtn onClick={() => p.rotate(-1)}>
+          <RotateCcw className="h-4 w-4" />
+        </HudBtn>
+        <HudBtn onClick={() => p.rotate(1)}>
+          <RotateCw className="h-4 w-4" />
+        </HudBtn>
         <span className="ml-auto flex items-center gap-2">
           <span
             className="h-9 w-9 rounded-lg border border-line shadow-soft"
@@ -590,7 +616,9 @@ function Toolbar(p: ToolbarProps) {
 
       {p.artColors.length > 0 && (
         <div>
-          <SectionTitle gold>🎨 Couleurs du tableau</SectionTitle>
+          <SectionTitle gold>
+            <Palette className="inline h-3.5 w-3.5" /> Couleurs du tableau
+          </SectionTitle>
           <div className="flex flex-wrap gap-1.5">
             {p.artColors.map((c, i) => (
               <Swatch
@@ -645,16 +673,16 @@ function Toolbar(p: ToolbarProps) {
         <button
           onClick={p.undo}
           disabled={!p.canUndo}
-          className="rounded-lg border border-line px-2.5 py-1.5 transition hover:border-muted/40 disabled:opacity-40"
+          className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 transition hover:border-muted/40 disabled:opacity-40"
         >
-          ↩ Annuler
+          <Undo2 className="h-3.5 w-3.5" /> Annuler
         </button>
         <button
           onClick={p.redo}
           disabled={!p.canRedo}
-          className="rounded-lg border border-line px-2.5 py-1.5 transition hover:border-muted/40 disabled:opacity-40"
+          className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 transition hover:border-muted/40 disabled:opacity-40"
         >
-          ↪ Rétablir
+          <Redo2 className="h-3.5 w-3.5" /> Rétablir
         </button>
         <button
           onClick={p.clear}

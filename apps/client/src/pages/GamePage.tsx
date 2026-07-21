@@ -1,5 +1,16 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  EyeOff,
+  MapPin,
+  Medal,
+  Palette,
+  Search,
+  Star,
+  Timer,
+  Trophy,
+  VenetianMask,
+} from 'lucide-react';
 import { CHARACTER_SIZE, type CoHider, type RoomSnapshot, type RoundReveal } from '@mimic/shared';
 import { useGameStore } from '../store/gameStore.js';
 import { useCharacterStore } from '../store/characterStore.js';
@@ -150,25 +161,30 @@ function GameSidebar({
   const a = room.artwork;
   const urgent = remaining != null && remaining <= 10;
 
-  const consigne = camo
-    ? isSeeker
-      ? {
-          title: 'Tu es le chercheur 🔍',
-          text: 'Observe l’œuvre et mémorise les cachettes possibles. La traque commence à la fin du chrono.',
-        }
-      : {
-          title: 'Camoufle-toi ! 🎨',
-          text: 'Place ton personnage puis peins-le pour le fondre dans l’œuvre. Espace = pipette pour capturer les couleurs.',
-        }
-    : isSeeker
-      ? {
-          title: 'À toi de jouer 🔍',
-          text: 'Clique sur les personnages camouflés. Un raté impose 3 s d’attente.',
-        }
-      : {
-          title: 'Ne bouge plus 🤫',
-          text: 'Le chercheur scrute l’œuvre. Reste immobile et prie pour ne pas être repéré…',
-        };
+  const consigne: { Icon: ComponentType<{ className?: string }>; title: string; text: string } =
+    camo
+      ? isSeeker
+        ? {
+            Icon: Search,
+            title: 'Tu es le chercheur',
+            text: 'Observe l’œuvre et mémorise les cachettes possibles. La traque commence à la fin du chrono.',
+          }
+        : {
+            Icon: Palette,
+            title: 'Camoufle-toi !',
+            text: 'Place ton personnage puis peins-le pour le fondre dans l’œuvre. Espace = pipette pour capturer les couleurs.',
+          }
+      : isSeeker
+        ? {
+            Icon: Search,
+            title: 'À toi de jouer',
+            text: 'Clique sur les personnages camouflés. Un raté impose 3 s d’attente.',
+          }
+        : {
+            Icon: EyeOff,
+            title: 'Ne bouge plus',
+            text: 'Le chercheur scrute l’œuvre. Reste immobile et prie pour ne pas être repéré…',
+          };
 
   return (
     <aside className="flex w-60 shrink-0 flex-col gap-4 overflow-y-auto border-r border-line bg-surface p-4">
@@ -194,7 +210,10 @@ function GameSidebar({
       </div>
 
       <div className="rounded-xl bg-accent-soft p-3 text-sm">
-        <div className="mb-1 font-semibold">{consigne.title}</div>
+        <div className="mb-1 flex items-center gap-1.5 font-semibold">
+          <consigne.Icon className="h-4 w-4 text-accent" />
+          {consigne.title}
+        </div>
         <p className="text-muted">{consigne.text}</p>
       </div>
 
@@ -215,12 +234,16 @@ function GameSidebar({
                       isSelf ? 'border-gold/50 bg-gold-soft' : 'border-line bg-canvas'
                     }`}
                   >
-                    <span className="text-xs">{isSelf ? '📍' : '🎭'}</span>
+                    {isSelf ? (
+                      <MapPin className="h-3.5 w-3.5 shrink-0 text-gold" />
+                    ) : (
+                      <VenetianMask className="h-3.5 w-3.5 shrink-0 text-muted" />
+                    )}
                     <span className="min-w-0 flex-1 truncate font-medium">
                       {h.pseudo}
                       {isSelf && <span className="ml-1 text-xs text-gold">(toi)</span>}
                     </span>
-                    <span className="text-[10px] text-muted">🔍</span>
+                    <Search className="h-3 w-3 shrink-0 text-muted" />
                   </button>
                 </li>
               );
@@ -230,10 +253,13 @@ function GameSidebar({
       )}
 
       {camo && !isSeeker && (
-        <p className="rounded-xl border border-dashed border-line p-3 text-xs leading-relaxed text-muted">
-          ⏱ Ton camouflage est{' '}
-          <span className="font-semibold text-ink">validé automatiquement</span> à la fin du chrono
-          — rien à confirmer.
+        <p className="flex items-start gap-1.5 rounded-xl border border-dashed border-line p-3 text-xs leading-relaxed text-muted">
+          <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            Ton camouflage est{' '}
+            <span className="font-semibold text-ink">validé automatiquement</span> à la fin du
+            chrono — rien à confirmer.
+          </span>
         </p>
       )}
 
@@ -243,9 +269,13 @@ function GameSidebar({
           <div className="mt-0.5 text-xs text-muted">
             {a.author} · {a.year}
           </div>
-          <div className="mt-1 text-xs text-gold">
-            {'★'.repeat(a.difficulty)}
-            {'☆'.repeat(4 - a.difficulty)}
+          <div className="mt-1 flex gap-0.5">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Star
+                key={i}
+                className={`h-3.5 w-3.5 ${i < a.difficulty ? 'fill-gold text-gold' : 'text-line'}`}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -293,9 +323,14 @@ function Waiting({ text }: { text: string }) {
 
 /** Métadonnées de podium indexées par rang (0 = 1er). */
 const PODIUM = [
-  { medal: '🥇', height: 'h-28', bar: 'bg-accent shadow-pop', delay: '0s' },
-  { medal: '🥈', height: 'h-20', bar: 'bg-accent-soft', delay: '0.18s' },
-  { medal: '🥉', height: 'h-16', bar: 'bg-gold-soft', delay: '0.34s' },
+  { color: 'text-gold fill-gold/25', height: 'h-28', bar: 'bg-accent shadow-pop', delay: '0s' },
+  { color: 'text-stone-400 fill-stone-200', height: 'h-20', bar: 'bg-accent-soft', delay: '0.18s' },
+  {
+    color: 'text-amber-700 fill-amber-700/20',
+    height: 'h-16',
+    bar: 'bg-gold-soft',
+    delay: '0.34s',
+  },
 ];
 
 /** Classement final : podium (1er au centre, or) + classement complet (#22). */
@@ -311,7 +346,7 @@ function FinalStandings({ room }: { room: RoomSnapshot }) {
     <div className="animate-slide-up space-y-6 rounded-2xl border border-line bg-surface p-6 shadow-soft">
       <Confetti />
       <div className="text-center">
-        <div className="animate-pop-in text-4xl">🏆</div>
+        <Trophy className="animate-pop-in mx-auto h-10 w-10 fill-gold/20 text-gold" />
         <h2 className="mt-1 text-xl font-bold">Partie terminée</h2>
         {winner && (
           <p className="text-sm text-muted">
@@ -332,10 +367,10 @@ function FinalStandings({ room }: { room: RoomSnapshot }) {
           return (
             <div key={p.id} className="flex w-24 flex-col items-center">
               <div
-                className={`text-3xl ${isWinner ? 'animate-wiggle' : ''}`}
+                className={isWinner ? 'animate-wiggle' : ''}
                 style={isWinner ? { animationIterationCount: 3 } : undefined}
               >
-                {meta.medal}
+                <Medal className={`h-9 w-9 ${meta.color}`} />
               </div>
               <div className="max-w-full truncate text-sm font-medium">
                 {p.pseudo}
@@ -423,17 +458,21 @@ function Scoreboard({
                 {r.playerId === myId && <span className="ml-2 text-xs text-accent">(toi)</span>}
               </span>
               {isSeeker ? (
-                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700">
-                  🔍 chercheur
+                <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700">
+                  <Search className="h-3 w-3" /> chercheur
                 </span>
               ) : rev ? (
                 <span
-                  className={`rounded-full px-2 py-0.5 text-xs ${
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
                     rev.found ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
                   }`}
                 >
                   {rev.found ? 'trouvé' : 'échappé'}
-                  {rev.camouflageScore != null ? ` · 🎨 ${rev.camouflageScore}%` : ''}
+                  {rev.camouflageScore != null && (
+                    <>
+                      · <Palette className="h-3 w-3" /> {rev.camouflageScore}%
+                    </>
+                  )}
                 </span>
               ) : null}
             </span>

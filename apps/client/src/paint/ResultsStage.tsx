@@ -1,3 +1,4 @@
+import { ScanSearch } from 'lucide-react';
 import { CHARACTER_SIZE, type Artwork, type RoundReveal } from '@mimic/shared';
 import { PixelSprite } from './PixelSprite.js';
 import { artworkBg } from './artworkBg.js';
@@ -73,8 +74,8 @@ export function ResultsStage({
       {/* Cartes focus : où était caché chaque joueur */}
       {reveals.length > 0 && (
         <div>
-          <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
-            🔎 Les cachettes
+          <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted">
+            <ScanSearch className="h-4 w-4" /> Les cachettes
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {reveals.map((r, i) => (

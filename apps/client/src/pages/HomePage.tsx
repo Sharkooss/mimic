@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowRight, Ghost, Globe, Lock, Palette, Save, Search } from 'lucide-react';
 import { EVENTS, LOBBY, MODE_META, type AckResult, type RoomListing } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useAuthStore } from '../store/authStore.js';
@@ -77,7 +78,7 @@ export function HomePage(): JSX.Element {
         {/* Bloc titre (compact) */}
         <div className="relative shrink-0 px-8 pt-8 sm:px-12">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/70 backdrop-blur">
-            🎨 Cache-cache dans les chefs-d’œuvre
+            <Palette className="h-3.5 w-3.5" /> Cache-cache dans les chefs-d’œuvre
           </span>
           <h1 className="mt-4 font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-[3.4rem]">
             Fondez-vous dans{' '}
@@ -88,8 +89,8 @@ export function HomePage(): JSX.Element {
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
             {STEPS.map((s, i) => (
               <div key={i} className="flex items-center gap-2 text-sm text-white/75">
-                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/10 text-base">
-                  {s.icon}
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/10">
+                  <s.Icon className="h-4 w-4 text-white/90" />
                 </span>
                 <span className="font-semibold text-white/90">{s.title}</span>
               </div>
@@ -120,11 +121,19 @@ export function HomePage(): JSX.Element {
                 <button
                   key={v}
                   onClick={() => setVisibility(v)}
-                  className={`flex-1 rounded-lg px-2 py-1.5 transition ${
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 transition ${
                     visibility === v ? 'bg-surface shadow-soft' : 'text-muted hover:text-ink'
                   }`}
                 >
-                  {v === 'public' ? '🌍 Public' : '🔒 Privé'}
+                  {v === 'public' ? (
+                    <>
+                      <Globe className="h-4 w-4" /> Public
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="h-4 w-4" /> Privé
+                    </>
+                  )}
                 </button>
               ))}
             </div>
@@ -180,7 +189,7 @@ export function HomePage(): JSX.Element {
           </div>
           {rooms.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-line py-8 text-center text-sm text-muted">
-              <span className="text-2xl">🎨</span>
+              <Palette className="h-7 w-7 text-muted/60" />
               <span className="mt-1">Aucune partie publique — lance-en une !</span>
             </div>
           ) : (
@@ -218,13 +227,15 @@ export function HomePage(): JSX.Element {
               className="flex items-center justify-between rounded-2xl border border-line bg-surface px-4 py-3 text-left text-sm transition hover:border-accent/40 hover:shadow-soft"
             >
               <span className="flex items-center gap-2">
-                <span className="text-lg">💾</span>
+                <Save className="h-5 w-5 shrink-0 text-accent" />
                 <span className="text-muted">
                   <span className="font-semibold text-ink">Crée un compte</span> pour garder ta
                   progression, ton XP et ton historique.
                 </span>
               </span>
-              <span className="shrink-0 font-semibold text-accent">Connexion →</span>
+              <span className="flex shrink-0 items-center gap-1 font-semibold text-accent">
+                Connexion <ArrowRight className="h-4 w-4" />
+              </span>
             </button>
           ))}
       </div>
@@ -232,8 +243,8 @@ export function HomePage(): JSX.Element {
   );
 }
 
-const STEPS = [
-  { icon: '🎨', title: 'Peins & place' },
-  { icon: '🫥', title: 'Cache-toi' },
-  { icon: '🔍', title: 'Traque' },
+const STEPS: { Icon: ComponentType<{ className?: string }>; title: string }[] = [
+  { Icon: Palette, title: 'Peins & place' },
+  { Icon: Ghost, title: 'Cache-toi' },
+  { Icon: Search, title: 'Traque' },
 ];

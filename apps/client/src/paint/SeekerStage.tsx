@@ -6,6 +6,7 @@ import {
   type Artwork,
   type PlayerFoundReveal,
 } from '@mimic/shared';
+import { Check, Eye, Minus, Plus, Search, Target, Timer } from 'lucide-react';
 import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
 import { PixelSprite } from './PixelSprite.js';
@@ -236,10 +237,18 @@ export function SeekerStage({
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-line bg-surface px-4 text-sm">
-        <span className="font-semibold">
-          {interactive
-            ? '🔍 Repère les personnages fondus dans la toile et clique dessus (raté = 3 s d’attente)'
-            : '👀 Observe l’œuvre et mémorise les cachettes possibles'}
+        <span className="flex items-center gap-1.5 font-semibold">
+          {interactive ? (
+            <>
+              <Search className="h-4 w-4 shrink-0" />
+              Repère les personnages fondus dans la toile et clique dessus (raté = 3 s d’attente)
+            </>
+          ) : (
+            <>
+              <Eye className="h-4 w-4 shrink-0" />
+              Observe l’œuvre et mémorise les cachettes possibles
+            </>
+          )}
         </span>
         {interactive && (
           <span className="font-mono text-muted">
@@ -315,8 +324,8 @@ export function SeekerStage({
                         style={{ width: S * fitScale, height: S * fitScale }}
                       />
                       <span className="animate-pop-in absolute inset-0 rounded-sm ring-2 ring-emerald-400" />
-                      <span className="animate-pop-in absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[11px] text-white shadow-soft">
-                        ✓
+                      <span className="animate-pop-in absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow-soft">
+                        <Check className="h-3 w-3" strokeWidth={3} />
                       </span>
                     </>
                   )}
@@ -341,8 +350,8 @@ export function SeekerStage({
                   strokeLinejoin="round"
                 />
               </svg>
-              <span className="ml-4 whitespace-nowrap rounded bg-gold/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                🔍 chercheur
+              <span className="ml-4 inline-flex items-center gap-1 whitespace-nowrap rounded bg-gold/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                <Search className="h-2.5 w-2.5" /> chercheur
               </span>
             </div>
           )}
@@ -361,27 +370,37 @@ export function SeekerStage({
               />
               {impact.ok && <Burst x={0} y={0} count={14} />}
               <span
-                className={`animate-float-up absolute left-0 top-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-bold text-white shadow-pop ${
+                className={`animate-float-up absolute left-0 top-0 inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-bold text-white shadow-pop ${
                   impact.ok ? 'bg-emerald-500' : 'bg-red-500'
                 }`}
               >
-                {impact.ok ? 'Trouvé ! 🎯' : 'Raté…'}
+                {impact.ok ? (
+                  <>
+                    <Target className="h-4 w-4" /> Trouvé !
+                  </>
+                ) : (
+                  'Raté…'
+                )}
               </span>
             </div>
           )}
 
           {onCooldown && (
             <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
-              <span className="rounded-full bg-red-500/90 px-4 py-1 font-mono text-sm text-white">
-                ⏳ {(cooldownLeft / 1000).toFixed(1)}s
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/90 px-4 py-1 font-mono text-sm text-white">
+                <Timer className="h-4 w-4" /> {(cooldownLeft / 1000).toFixed(1)}s
               </span>
             </div>
           )}
 
           <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg bg-surface/90 p-1 shadow-soft">
-            <HudBtn onClick={() => zoomBy(1 / 1.3, vp.w / 2, vp.h / 2)}>−</HudBtn>
+            <HudBtn onClick={() => zoomBy(1 / 1.3, vp.w / 2, vp.h / 2)}>
+              <Minus className="h-4 w-4" />
+            </HudBtn>
             <span className="w-9 text-center font-mono text-xs">{cam.zoom.toFixed(1)}×</span>
-            <HudBtn onClick={() => zoomBy(1.3, vp.w / 2, vp.h / 2)}>+</HudBtn>
+            <HudBtn onClick={() => zoomBy(1.3, vp.w / 2, vp.h / 2)}>
+              <Plus className="h-4 w-4" />
+            </HudBtn>
           </div>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { xpForLevel, type PublicProfile } from '@mimic/shared';
 import { getProfile } from '../lib/auth.js';
 import { Card, StatTile, XpBar } from '../components/ui.js';
@@ -31,8 +32,11 @@ export function PublicProfilePage(): JSX.Element {
     return (
       <Card className="p-8 text-center">
         <p className="text-muted">{error ?? 'Joueur introuvable.'}</p>
-        <Link to="/leaderboard" className="mt-3 inline-block text-sm font-semibold text-accent">
-          ← Retour au classement
+        <Link
+          to="/leaderboard"
+          className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent"
+        >
+          <ArrowLeft className="h-4 w-4" /> Retour au classement
         </Link>
       </Card>
     );
@@ -47,8 +51,11 @@ export function PublicProfilePage(): JSX.Element {
 
   return (
     <div className="mx-auto max-w-3xl animate-slide-up space-y-6">
-      <Link to="/leaderboard" className="text-sm font-semibold text-accent">
-        ← Classement
+      <Link
+        to="/leaderboard"
+        className="inline-flex items-center gap-1 text-sm font-semibold text-accent"
+      >
+        <ArrowLeft className="h-4 w-4" /> Classement
       </Link>
 
       <Card className="p-6">

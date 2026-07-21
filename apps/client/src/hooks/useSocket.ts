@@ -28,14 +28,14 @@ export function useSocket(): void {
     const onProgress = (p: ProgressUpdate) => {
       const auth = useAuthStore.getState();
       if (auth.user) auth.setUser({ ...auth.user, xp: p.xp, level: p.level });
-      setToast(p.leveledUp ? `🎉 Niveau ${p.level} atteint ! +${p.gained} XP` : `+${p.gained} XP`);
+      setToast(p.leveledUp ? `Niveau ${p.level} atteint ! +${p.gained} XP` : `+${p.gained} XP`);
     };
     const onGalleryUnlocked = ({ artworks }: { artworks: UnlockedArtwork[] }) => {
       if (artworks.length === 0) return;
       setToast(
         artworks.length === 1
-          ? `🖼️ Nouvelle œuvre dans ta galerie : ${artworks[0]!.title}`
-          : `🖼️ ${artworks.length} nouvelles œuvres dans ta galerie !`,
+          ? `Nouvelle œuvre dans ta galerie : ${artworks[0]!.title}`
+          : `${artworks.length} nouvelles œuvres dans ta galerie !`,
       );
     };
     // Cibles du chercheur : listener persistant (l'event précède le montage de la vue).

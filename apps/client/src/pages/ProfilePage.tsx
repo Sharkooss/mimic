@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { xpProgress, type MatchHistoryEntry, type PlayerStatsDTO } from '@mimic/shared';
 import { useAuthStore } from '../store/authStore.js';
 import { getMyHistory, getMyStats } from '../lib/auth.js';
@@ -34,8 +35,11 @@ export function ProfilePage(): JSX.Element {
     return (
       <Card className="p-8 text-center">
         <p className="text-muted">Connecte-toi pour voir ton profil.</p>
-        <Link to="/" className="mt-3 inline-block text-sm font-semibold text-accent">
-          ← Retour à l’accueil
+        <Link
+          to="/"
+          className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent"
+        >
+          <ArrowLeft className="h-4 w-4" /> Retour à l’accueil
         </Link>
       </Card>
     );

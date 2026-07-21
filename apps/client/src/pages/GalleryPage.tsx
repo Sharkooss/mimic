@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLeft, Images, Lock } from 'lucide-react';
 import type { CollectedArtwork } from '@mimic/shared';
 import { useAuthStore } from '../store/authStore.js';
 import { getArtworks, getMyGallery, type CatalogueArtwork } from '../lib/auth.js';
@@ -51,8 +52,11 @@ export function GalleryPage(): JSX.Element {
     return (
       <Card className="p-8 text-center">
         <p className="text-muted">Connecte-toi pour bâtir ta galerie d’œuvres.</p>
-        <Link to="/" className="mt-3 inline-block text-sm font-semibold text-accent">
-          ← Retour à l’accueil
+        <Link
+          to="/"
+          className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent"
+        >
+          <ArrowLeft className="h-4 w-4" /> Retour à l’accueil
         </Link>
       </Card>
     );
@@ -65,7 +69,9 @@ export function GalleryPage(): JSX.Element {
   return (
     <div className="mx-auto max-w-5xl animate-slide-up space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">🖼️ Ma galerie</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <Images className="h-6 w-6 text-accent" /> Ma galerie
+        </h1>
         <p className="text-sm text-muted">
           Chaque œuvre sur laquelle tu joues rejoint ta collection.
         </p>
@@ -113,7 +119,7 @@ export function GalleryPage(): JSX.Element {
                   />
                   {!owned && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-white/80">
-                      <span className="text-2xl">🔒</span>
+                      <Lock className="h-6 w-6" />
                       <span className="text-xs font-medium">À découvrir</span>
                     </div>
                   )}
