@@ -22,23 +22,41 @@ interface Camera {
   y: number;
 }
 
+/** Un personnage à afficher sur l'œuvre (cible du chercheur ou co-caché). */
+interface StagePlayer {
+  id: string;
+  x: number;
+  y: number;
+  rotation: number;
+  pixels: number[];
+  pseudo?: string;
+}
+
 /**
- * Plateau du chercheur, plein écran : l'œuvre remplit tout l'espace disponible
- * avec les personnages cachés camouflés dessus ; au chercheur de les repérer et
- * de cliquer. Un raté impose un cooldown. Les trouvés sont surlignés.
+ * Plateau plein écran de la phase de recherche : l'œuvre remplit l'espace, avec
+ * les personnages (`players`) dessus. Côté chercheur (`interactive`) : cibles à
+ * cliquer, un raté impose un cooldown. Côté caché : il se voit lui-même et les
+ * autres cachés (labels), et peut focaliser la caméra sur l'un d'eux (`focusTarget`).
  */
 export function SeekerStage({
   artwork,
   interactive,
   totalHiders,
+  players,
+  showLabels = false,
+  myId = null,
+  focusTarget = null,
 }: {
   artwork: Artwork;
   interactive: boolean;
   totalHiders: number;
+  players: StagePlayer[];
+  showLabels?: boolean;
+  myId?: string | null;
+  focusTarget?: { x: number; y: number; key: number } | null;
 }): JSX.Element {
   const outerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const targets = useGameStore((s) => s.seekerTargets);
   // Curseur du chercheur relayé par le serveur : montré aux joueurs qui regardent
   // la traque (jamais au chercheur lui-même, qui voit son vrai curseur).
   const remoteCursor = useGameStore((s) => s.seekerCursor);
@@ -204,8 +222,16 @@ export function SeekerStage({
     zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - rect.left, e.clientY - rect.top);
   };
 
+  // Focalise la caméra sur un joueur (déclenché depuis la liste des cachés).
+  useEffect(() => {
+    if (!focusTarget) return;
+    const z = Math.min(artwork.maxZoom, 3);
+    const s1 = fitScale * z;
+    setCam({ zoom: z, x: vp.w / 2 - focusTarget.x * s1, y: vp.h / 2 - focusTarget.y * s1 });
+  }, [focusTarget, fitScale, vp.w, vp.h, artwork.maxZoom]);
+
   const cursor = interactive ? (onCooldown ? 'not-allowed' : 'crosshair') : 'grab';
-  const shown = interactive ? targets : [];
+  const shown = players;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
@@ -248,9 +274,10 @@ export function SeekerStage({
               background: artworkBg(artwork),
             }}
           >
-            {/* Cachés camouflés (le chercheur doit les repérer) */}
+            {/* Personnages sur l'œuvre (cibles du chercheur, ou co-cachés) */}
             {shown.map((t) => {
               const isFound = foundIds.has(t.id);
+              const isSelf = myId != null && t.id === myId;
               return (
                 <div
                   key={t.id}
@@ -263,6 +290,23 @@ export function SeekerStage({
                   }}
                 >
                   <PixelSprite pixels={t.pixels} size={S * fitScale} rotation={t.rotation} />
+                  {/* Label (côté caché) : pseudo au-dessus, soi-même surligné */}
+                  {showLabels && t.pseudo && (
+                    <>
+                      <span
+                        className={`absolute inset-0 rounded-sm ring-1 ${
+                          isSelf ? 'ring-gold' : 'ring-white/40'
+                        }`}
+                      />
+                      <span
+                        className={`absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-soft ${
+                          isSelf ? 'bg-gold' : 'bg-night/70'
+                        }`}
+                      >
+                        {isSelf ? 'toi' : t.pseudo}
+                      </span>
+                    </>
+                  )}
                   {isFound && (
                     <>
                       {/* Halo qui pulse pour attirer l'œil sur la capture */}

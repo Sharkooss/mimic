@@ -1,6 +1,6 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { RoomSnapshot, RoundReveal } from '@mimic/shared';
+import { CHARACTER_SIZE, type CoHider, type RoomSnapshot, type RoundReveal } from '@mimic/shared';
 import { useGameStore } from '../store/gameStore.js';
 import { useCharacterStore } from '../store/characterStore.js';
 import { useCountdown } from '../hooks/useCountdown.js';
@@ -10,6 +10,8 @@ import { SeekerStage } from '../paint/SeekerStage.js';
 import { ResultsStage } from '../paint/ResultsStage.js';
 import { Wordmark } from '../components/ui.js';
 import { Confetti, CountUp } from '../components/effects.js';
+
+const S = CHARACTER_SIZE;
 
 /**
  * Écran de partie. Les phases jouables (camouflage, recherche) passent en plein
@@ -22,9 +24,14 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
   const remaining = useCountdown(room.phaseEndsAt);
   const results = useGameStore((s) => s.results);
   const myId = useGameStore((s) => s.playerId);
+  const seekerTargets = useGameStore((s) => s.seekerTargets);
+  const coHiders = useGameStore((s) => s.coHiders);
   const isSeeker = room.seekerId === myId;
   const totalHiders = Math.max(0, room.players.length - 1);
   const fullscreen = room.phase === 'camouflage' || room.phase === 'seeking';
+
+  // Focus caméra demandé depuis la liste des cachés (clic sur un joueur).
+  const [focus, setFocus] = useState<{ x: number; y: number; key: number } | null>(null);
 
   // Plein écran de jeu : on gèle le scroll de la page derrière l'overlay.
   useEffect(() => {
@@ -37,9 +44,21 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
   }, [fullscreen]);
 
   if (fullscreen) {
+    const isHiderSeeking = room.phase === 'seeking' && !isSeeker;
+    // Cibles pour le chercheur, co-cachés pour un caché, rien pendant l'observation.
+    const stagePlayers = room.phase === 'seeking' ? (isSeeker ? seekerTargets : coHiders) : [];
+    const roster = isHiderSeeking ? coHiders : [];
+
     return (
       <div className="fixed inset-0 z-50 flex bg-canvas">
-        <GameSidebar room={room} remaining={remaining} isSeeker={isSeeker} />
+        <GameSidebar
+          room={room}
+          remaining={remaining}
+          isSeeker={isSeeker}
+          roster={roster}
+          myId={myId}
+          onFocus={(x, y) => setFocus({ x, y, key: Date.now() })}
+        />
         <main className="min-w-0 flex-1">
           {!room.artwork ? (
             <Waiting text="En attente de l’œuvre…" />
@@ -50,6 +69,10 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
               artwork={room.artwork}
               interactive={room.phase === 'seeking' && isSeeker}
               totalHiders={totalHiders}
+              players={stagePlayers}
+              showLabels={isHiderSeeking}
+              myId={myId}
+              focusTarget={focus}
             />
           )}
         </main>
@@ -107,15 +130,21 @@ function HiderBoard({ room, artworkId }: { room: RoomSnapshot; artworkId: string
   return <CamouflageBoard key={artworkId} artwork={room.artwork!} live />;
 }
 
-/** Colonne d'infos du plein écran : manche, chrono, consigne, œuvre. */
+/** Colonne d'infos du plein écran : manche, chrono, consigne, œuvre, roster. */
 function GameSidebar({
   room,
   remaining,
   isSeeker,
+  roster,
+  myId,
+  onFocus,
 }: {
   room: RoomSnapshot;
   remaining: number | null;
   isSeeker: boolean;
+  roster: CoHider[];
+  myId: string | null;
+  onFocus: (x: number, y: number) => void;
 }) {
   const camo = room.phase === 'camouflage';
   const a = room.artwork;
@@ -168,6 +197,37 @@ function GameSidebar({
         <div className="mb-1 font-semibold">{consigne.title}</div>
         <p className="text-muted">{consigne.text}</p>
       </div>
+
+      {/* Roster des cachés (clic = focus caméra) — visible entre cachés. */}
+      {roster.length > 0 && (
+        <div className="min-h-0 flex-1">
+          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+            Cachés ({roster.length}) · clique pour zoomer
+          </div>
+          <ul className="space-y-1 overflow-y-auto">
+            {roster.map((h) => {
+              const isSelf = h.id === myId;
+              return (
+                <li key={h.id}>
+                  <button
+                    onClick={() => onFocus(h.x + S / 2, h.y + S / 2)}
+                    className={`flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-sm transition hover:border-accent/40 hover:bg-accent-soft ${
+                      isSelf ? 'border-gold/50 bg-gold-soft' : 'border-line bg-canvas'
+                    }`}
+                  >
+                    <span className="text-xs">{isSelf ? '📍' : '🎭'}</span>
+                    <span className="min-w-0 flex-1 truncate font-medium">
+                      {h.pseudo}
+                      {isSelf && <span className="ml-1 text-xs text-gold">(toi)</span>}
+                    </span>
+                    <span className="text-[10px] text-muted">🔍</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {camo && !isSeeker && (
         <p className="rounded-xl border border-dashed border-line p-3 text-xs leading-relaxed text-muted">
@@ -231,15 +291,21 @@ function Waiting({ text }: { text: string }) {
   return <p className="p-6 text-stone-600">{text}</p>;
 }
 
-/** Classement final soigné : podium + classement complet (#22). */
+/** Métadonnées de podium indexées par rang (0 = 1er). */
+const PODIUM = [
+  { medal: '🥇', height: 'h-28', bar: 'bg-accent shadow-pop', delay: '0s' },
+  { medal: '🥈', height: 'h-20', bar: 'bg-accent-soft', delay: '0.18s' },
+  { medal: '🥉', height: 'h-16', bar: 'bg-gold-soft', delay: '0.34s' },
+];
+
+/** Classement final : podium (1er au centre, or) + classement complet (#22). */
 function FinalStandings({ room }: { room: RoomSnapshot }) {
   const myId = useGameStore((s) => s.playerId);
   const ranked = [...room.players].sort((a, b) => b.score - a.score);
   const podium = ranked.slice(0, 3);
-  const order = [1, 0, 2]; // 2e, 1er, 3e (1er au centre, surélevé)
-  const heights = ['h-20', 'h-28', 'h-16'];
-  const medals = ['🥈', '🥇', '🥉'];
-  const delays = ['0.25s', '0s', '0.4s']; // le 1er pousse en premier
+  // Ordre d'affichage gauche→droite : 2e, 1er (centre, surélevé), 3e.
+  const order = podium.length >= 3 ? [1, 0, 2] : podium.length === 2 ? [1, 0] : [0];
+  const winner = ranked[0];
 
   return (
     <div className="animate-slide-up space-y-6 rounded-2xl border border-line bg-surface p-6 shadow-soft">
@@ -247,40 +313,38 @@ function FinalStandings({ room }: { room: RoomSnapshot }) {
       <div className="text-center">
         <div className="animate-pop-in text-4xl">🏆</div>
         <h2 className="mt-1 text-xl font-bold">Partie terminée</h2>
-        {ranked[0] && (
+        {winner && (
           <p className="text-sm text-muted">
-            <span className="font-semibold text-accent">{ranked[0].pseudo}</span> remporte la partie
+            <span className="font-semibold text-accent">{winner.pseudo}</span> remporte la partie
             avec{' '}
-            <CountUp
-              value={ranked[0].score}
-              className="font-semibold text-accent"
-              duration={1100}
-            />{' '}
+            <CountUp value={winner.score} className="font-semibold text-accent" duration={1100} />{' '}
             points !
           </p>
         )}
       </div>
 
       <div className="flex items-end justify-center gap-3">
-        {order.map((oi, i) => {
-          const p = podium[oi];
-          if (!p) return <div key={i} className="w-24" />;
-          const isWinner = oi === 1;
+        {order.map((rank) => {
+          const p = podium[rank];
+          if (!p) return null;
+          const meta = PODIUM[rank]!;
+          const isWinner = rank === 0;
           return (
             <div key={p.id} className="flex w-24 flex-col items-center">
               <div
-                className={`text-2xl ${isWinner ? 'animate-wiggle' : ''}`}
+                className={`text-3xl ${isWinner ? 'animate-wiggle' : ''}`}
                 style={isWinner ? { animationIterationCount: 3 } : undefined}
               >
-                {medals[oi]}
+                {meta.medal}
               </div>
-              <div className="max-w-full truncate text-sm font-medium">{p.pseudo}</div>
+              <div className="max-w-full truncate text-sm font-medium">
+                {p.pseudo}
+                {p.id === myId && <span className="ml-1 text-xs text-accent">(toi)</span>}
+              </div>
               <div className="font-mono text-xs text-muted">{p.score}</div>
               <div
-                className={`animate-grow-bar mt-1 w-full origin-bottom rounded-t-lg ${heights[oi]} ${
-                  isWinner ? 'bg-accent shadow-pop' : 'bg-accent-soft'
-                }`}
-                style={{ animationDelay: delays[oi] }}
+                className={`animate-grow-bar mt-1 w-full origin-bottom rounded-t-lg ${meta.height} ${meta.bar}`}
+                style={{ animationDelay: meta.delay }}
               />
             </div>
           );

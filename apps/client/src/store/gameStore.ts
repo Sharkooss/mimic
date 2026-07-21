@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { RoomSnapshot, RoundResults, SeekerTarget } from '@mimic/shared';
+import type { CoHider, RoomSnapshot, RoundResults, SeekerTarget } from '@mimic/shared';
 
 interface GameState {
   connected: boolean;
@@ -9,6 +9,8 @@ interface GameState {
   results: RoundResults | null;
   /** Cachés camouflés à afficher au chercheur (reçus au début de la recherche). */
   seekerTargets: SeekerTarget[];
+  /** Cachés (avec pseudo) visibles par un autre caché pendant la recherche. */
+  coHiders: CoHider[];
   /** Curseur du chercheur (coords tableau) pendant la traque, pour l'afficher aux autres. */
   seekerCursor: { x: number; y: number } | null;
   toast: string | null;
@@ -17,6 +19,7 @@ interface GameState {
   setRoom: (room: RoomSnapshot | null) => void;
   setResults: (r: RoundResults | null) => void;
   setSeekerTargets: (t: SeekerTarget[]) => void;
+  setCoHiders: (h: CoHider[]) => void;
   setSeekerCursor: (c: { x: number; y: number } | null) => void;
   setToast: (msg: string | null) => void;
 }
@@ -28,6 +31,7 @@ export const useGameStore = create<GameState>((set) => ({
   room: null,
   results: null,
   seekerTargets: [],
+  coHiders: [],
   seekerCursor: null,
   toast: null,
   setConnected: (connected) => set({ connected }),
@@ -35,6 +39,7 @@ export const useGameStore = create<GameState>((set) => ({
   setRoom: (room) => set({ room }),
   setResults: (results) => set({ results }),
   setSeekerTargets: (seekerTargets) => set({ seekerTargets }),
+  setCoHiders: (coHiders) => set({ coHiders }),
   setSeekerCursor: (seekerCursor) => set({ seekerCursor }),
   setToast: (toast) => set({ toast }),
 }));

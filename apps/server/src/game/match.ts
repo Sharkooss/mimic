@@ -130,6 +130,7 @@ function setPhase(
     room.seekingStartedAt = Date.now();
     autoLockHiders(room);
     sendSeekingTargets(io, room);
+    sendCoHiders(io, room);
   }
   room.phaseEndsAt = Date.now() + durationSec * 1000;
   broadcast(io, room);
@@ -173,6 +174,30 @@ export function sendSeekingTargets(io: IO, room: Room): void {
       pixels: Array.from(p.pixels!),
     }));
   io.to(seeker.socketId).emit(EVENTS.seekingTargets, targets);
+}
+
+/**
+ * Envoie à chaque caché la liste de TOUS les cachés (soi + les autres, avec
+ * pseudo) : ils se voient peints dans l'œuvre et repèrent où sont les autres.
+ * Jamais envoyé au chercheur (à lui de les débusquer). Appelé au début de la
+ * recherche et à la reconnexion d'un caché.
+ */
+export function sendCoHiders(io: IO, room: Room): void {
+  if (room.phase !== 'seeking') return;
+  const hiders = [...room.players.values()].filter(
+    (p) => p.role === 'hider' && p.placement?.locked && p.pixels,
+  );
+  const payload = hiders.map((p) => ({
+    id: p.id,
+    pseudo: p.pseudo,
+    x: p.placement!.x,
+    y: p.placement!.y,
+    rotation: p.placement!.rotation,
+    pixels: Array.from(p.pixels!),
+  }));
+  for (const p of hiders) {
+    if (p.socketId) io.to(p.socketId).emit(EVENTS.seekingCohiders, payload);
+  }
 }
 
 /**

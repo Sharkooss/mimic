@@ -166,6 +166,20 @@ export interface SeekerTarget {
   pixels: number[];
 }
 
+/**
+ * Un caché vu par les AUTRES cachés pendant la recherche (avec pseudo) : permet
+ * de se voir soi-même et de repérer où se cachent les autres. Réservé aux
+ * cachés (jamais au chercheur, pour qui c'est le jeu de les retrouver).
+ */
+export interface CoHider {
+  id: string;
+  pseudo: string;
+  x: number;
+  y: number;
+  rotation: CharacterRotation;
+  pixels: number[];
+}
+
 /** Événements émis par le serveur vers le client. */
 export interface ServerToClientEvents {
   /** Id public du joueur pour ce socket (à la connexion/reconnexion). */
@@ -178,6 +192,8 @@ export interface ServerToClientEvents {
   'rooms:public': (rooms: RoomListing[]) => void;
   /** Personnages cachés (camouflés) envoyés au chercheur au début de la recherche. */
   'seeking:targets': (targets: SeekerTarget[]) => void;
+  /** Cachés (avec pseudo) envoyés à chaque caché : se voir soi + les autres. */
+  'seeking:cohiders': (hiders: CoHider[]) => void;
   /** Présence d'un autre caché pendant le camouflage (position + apparence). */
   presence: (data: {
     playerId: string;
@@ -238,6 +254,7 @@ export const EVENTS = {
   presenceUpdate: 'presence:update',
   presence: 'presence',
   seekingTargets: 'seeking:targets',
+  seekingCohiders: 'seeking:cohiders',
   characterLock: 'character:lock',
   seekerClick: 'seeker:click',
   seekerCursor: 'seeker:cursor',
