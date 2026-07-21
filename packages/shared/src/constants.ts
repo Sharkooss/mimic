@@ -78,6 +78,10 @@ export function xpProgress(xp: number): { level: number; inLevel: number; span: 
 export const GAME_MODES = ['classic', 'everyone-seeks', 'coop', 'blitz', 'ranked'] as const;
 export type GameMode = (typeof GAME_MODES)[number];
 
+/** Visibilité d'un salon : public (listé, rejoignable sans code) ou privé (par code). */
+export const ROOM_VISIBILITIES = ['public', 'private'] as const;
+export type RoomVisibility = (typeof ROOM_VISIBILITIES)[number];
+
 /** Difficulté d'un tableau (1 à 4 étoiles). */
 export const DIFFICULTY = [1, 2, 3, 4] as const;
 export type Difficulty = (typeof DIFFICULTY)[number];

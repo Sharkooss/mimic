@@ -4,7 +4,9 @@ import {
   type CharacterPlacement,
   type GameMode,
   type PlayerRole,
+  type RoomListing,
   type RoomSnapshot,
+  type RoomVisibility,
   type PublicPlayer,
 } from '@mimic/shared';
 
@@ -71,6 +73,7 @@ export function freshMatchStats(): MatchStats {
 export interface Room {
   code: string;
   mode: GameMode;
+  visibility: RoomVisibility;
   phase: RoomSnapshot['phase'];
   players: Map<string, ServerPlayer>;
   hostId: string | null;
@@ -105,10 +108,11 @@ function generateCode(): string {
   return code;
 }
 
-export function createRoom(mode: GameMode): Room {
+export function createRoom(mode: GameMode, visibility: RoomVisibility = 'private'): Room {
   const room: Room = {
     code: generateCode(),
     mode,
+    visibility,
     phase: 'lobby',
     players: new Map(),
     hostId: null,
@@ -154,6 +158,7 @@ export function snapshot(room: Room): RoomSnapshot {
   return {
     code: room.code,
     mode: room.mode,
+    visibility: room.visibility,
     phase: room.phase,
     players: [...room.players.values()].map(publicView),
     round: room.round,
@@ -195,4 +200,23 @@ export function pruneEmptyRooms(): void {
 
 export function roomCount(): number {
   return rooms.size;
+}
+
+/** Salons publics rejoignables (en lobby, non pleins), pour le navigateur de parties. */
+export function publicListings(): RoomListing[] {
+  const list: RoomListing[] = [];
+  for (const room of rooms.values()) {
+    if (room.visibility !== 'public' || room.phase !== 'lobby') continue;
+    if (room.players.size >= LOBBY.maxPlayers) continue;
+    const host = room.hostId ? room.players.get(room.hostId) : undefined;
+    list.push({
+      code: room.code,
+      mode: room.mode,
+      host: host?.pseudo ?? '—',
+      players: room.players.size,
+      maxPlayers: LOBBY.maxPlayers,
+      createdAt: room.createdAt,
+    });
+  }
+  return list.sort((a, b) => b.createdAt - a.createdAt);
 }

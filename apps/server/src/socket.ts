@@ -28,6 +28,7 @@ import {
   freshMatchStats,
   getRoom,
   newPlayerId,
+  publicListings,
   snapshot,
   type Room,
   type ServerPlayer,
@@ -90,10 +91,19 @@ export function setupSocket(
       const parsed = createRoomSchema.safeParse(payload);
       if (!parsed.success) return ack({ ok: false, error: 'Paramètres invalides.' });
 
-      const room = createRoom(parsed.data.mode);
+      const room = createRoom(parsed.data.mode, parsed.data.visibility);
       addPlayer(room, socket, true);
       broadcastSnapshot(io, room);
+      broadcastLobby(io);
       ack({ ok: true, code: room.code });
+    });
+
+    socket.on(EVENTS.lobbyWatch, (ack) => {
+      socket.join('lobby');
+      ack({ ok: true, rooms: publicListings() });
+    });
+    socket.on(EVENTS.lobbyUnwatch, () => {
+      socket.leave('lobby');
     });
 
     socket.on(EVENTS.roomJoin, (payload, ack) => {
@@ -117,6 +127,7 @@ export function setupSocket(
 
       addPlayer(room, socket, false);
       broadcastSnapshot(io, room);
+      broadcastLobby(io);
       ack({ ok: true, code: room.code });
     });
 
@@ -132,6 +143,7 @@ export function setupSocket(
       if (!parsed.success) return ack({ ok: false, error: 'Mode invalide.' });
       room.mode = parsed.data.mode;
       broadcastSnapshot(io, room);
+      broadcastLobby(io);
       ack({ ok: true });
     });
 
@@ -144,6 +156,7 @@ export function setupSocket(
       }
       const res = startMatch(io, room);
       if (!res.ok) return ack({ ok: false, error: res.error ?? 'Impossible de démarrer.' });
+      broadcastLobby(io); // le salon quitte le lobby → disparaît de la liste publique
       ack({ ok: true });
     });
 
@@ -357,6 +370,7 @@ function removePlayer(
   if (room.players.size === 0) {
     clearRoomTimer(room);
     deleteRoom(room.code);
+    broadcastLobby(io);
     return;
   }
 
@@ -369,6 +383,7 @@ function removePlayer(
     if (next) next.isHost = true;
   }
   broadcastSnapshot(io, room);
+  broadcastLobby(io);
 }
 
 function broadcastSnapshot(
@@ -376,4 +391,9 @@ function broadcastSnapshot(
   room: Room,
 ): void {
   io.to(room.code).emit(EVENTS.roomSnapshot, snapshot(room));
+}
+
+/** Pousse la liste des salons publics aux clients qui parcourent le lobby. */
+function broadcastLobby(io: Server<ClientToServerEvents, ServerToClientEvents>): void {
+  io.to('lobby').emit(EVENTS.publicRooms, publicListings());
 }

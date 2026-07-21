@@ -1,7 +1,18 @@
 import { z } from 'zod';
-import { CHARACTER_ROTATIONS, CHARACTER_SIZE, GAME_MODES, LOBBY } from './constants.js';
+import {
+  CHARACTER_ROTATIONS,
+  CHARACTER_SIZE,
+  GAME_MODES,
+  LOBBY,
+  ROOM_VISIBILITIES,
+} from './constants.js';
 import type { CharacterRotation, GameMode } from './constants.js';
-import type { CamouflageBreakdown, CharacterPlacement, RoomSnapshot } from './types.js';
+import type {
+  CamouflageBreakdown,
+  CharacterPlacement,
+  RoomListing,
+  RoomSnapshot,
+} from './types.js';
 
 /* -------------------------------------------------------------------------- */
 /*  Schémas de payload (validés côté serveur avec zod)                        */
@@ -9,6 +20,7 @@ import type { CamouflageBreakdown, CharacterPlacement, RoomSnapshot } from './ty
 
 export const createRoomSchema = z.object({
   mode: z.enum(GAME_MODES).default('classic'),
+  visibility: z.enum(ROOM_VISIBILITIES).default('private'),
 });
 
 export const joinRoomSchema = z.object({
@@ -72,6 +84,9 @@ export interface ClientToServerEvents {
   'room:leave': () => void;
   'room:set-mode': (payload: { mode: GameMode }, ack: (res: AckResult) => void) => void;
   'room:start': (ack: (res: AckResult) => void) => void;
+  /** S'abonner à la liste des salons publics (navigateur de parties). */
+  'lobby:watch': (ack: (res: AckResult<{ rooms: RoomListing[] }>) => void) => void;
+  'lobby:unwatch': () => void;
   'character:move': (payload: PlacementPayload) => void;
   /** Présence temps réel pendant le camouflage (relayée aux autres cachés). */
   'presence:update': (payload: {
@@ -115,6 +130,8 @@ export interface ServerToClientEvents {
   session: (data: { playerId: string }) => void;
   /** Progression XP/niveau (fin de partie, joueur connecté). */
   progress: (data: ProgressUpdate) => void;
+  /** Liste des salons publics (poussée aux clients qui parcourent le lobby). */
+  'rooms:public': (rooms: RoomListing[]) => void;
   /** Présence d'un autre caché pendant le camouflage (position + apparence). */
   presence: (data: {
     playerId: string;
@@ -161,6 +178,9 @@ export const EVENTS = {
   roomLeave: 'room:leave',
   roomSetMode: 'room:set-mode',
   roomStart: 'room:start',
+  lobbyWatch: 'lobby:watch',
+  lobbyUnwatch: 'lobby:unwatch',
+  publicRooms: 'rooms:public',
   session: 'session',
   progress: 'progress',
   roomSnapshot: 'room:snapshot',

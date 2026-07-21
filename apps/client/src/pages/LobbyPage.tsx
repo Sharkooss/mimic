@@ -51,11 +51,26 @@ export function LobbyPage(): JSX.Element {
     <div className="animate-fade-in space-y-7">
       <Card className="flex items-center justify-between p-5">
         <div>
-          <div className="text-xs uppercase tracking-[0.2em] text-muted">Code du salon</div>
+          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-muted">
+            Code du salon
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium normal-case tracking-normal ${
+                room.visibility === 'public'
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-gold-soft text-gold'
+              }`}
+            >
+              {room.visibility === 'public' ? '🌍 Public' : '🔒 Privé'}
+            </span>
+          </div>
           <div className="font-display text-4xl font-bold tracking-[0.28em] text-ink">
             {room.code}
           </div>
-          <div className="mt-1 text-xs text-muted">Partage-le pour inviter tes amis.</div>
+          <div className="mt-1 text-xs text-muted">
+            {room.visibility === 'public'
+              ? 'Visible dans la liste des parties publiques.'
+              : 'Partage-le pour inviter tes amis.'}
+          </div>
         </div>
         <Button variant="ghost" onClick={leave}>
           Quitter

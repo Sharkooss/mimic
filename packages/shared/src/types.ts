@@ -1,4 +1,14 @@
-import type { CharacterRotation, Difficulty, GameMode } from './constants.js';
+import type { CharacterRotation, Difficulty, GameMode, RoomVisibility } from './constants.js';
+
+/** Résumé d'un salon public listé dans le navigateur de parties. */
+export interface RoomListing {
+  code: string;
+  mode: GameMode;
+  host: string;
+  players: number;
+  maxPlayers: number;
+  createdAt: number;
+}
 
 /** Phases de la boucle de jeu. */
 export type GamePhase = 'lobby' | 'camouflage' | 'seeking' | 'results' | 'finished';
@@ -117,6 +127,7 @@ export interface CamouflageBreakdown {
 export interface RoomSnapshot {
   code: string;
   mode: GameMode;
+  visibility: RoomVisibility;
   phase: GamePhase;
   players: PublicPlayer[];
   /** Index de la manche courante (0-based). */
