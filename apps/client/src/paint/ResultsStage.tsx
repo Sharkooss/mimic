@@ -32,12 +32,25 @@ export function ResultsStage({
             <span className="text-2xl font-semibold">{artwork.title}</span>
           </div>
         )}
-        {reveals.map((r) => (
+        {reveals.map((r, i) => (
           <div
             key={r.playerId}
-            className="absolute"
-            style={{ left: r.x * fit, top: r.y * fit, width: S * fit, height: S * fit }}
+            className="animate-pop-in absolute"
+            style={{
+              left: r.x * fit,
+              top: r.y * fit,
+              width: S * fit,
+              height: S * fit,
+              animationDelay: `${i * 140}ms`,
+            }}
           >
+            {/* Halo pulsant : vert = échappé (bravo), rouge = repéré */}
+            <span
+              className={`animate-pulse-ring absolute left-1/2 top-1/2 rounded-full border-2 ${
+                r.found ? 'border-red-400' : 'border-emerald-400'
+              }`}
+              style={{ width: S * fit, height: S * fit, animationDelay: `${i * 140 + 200}ms` }}
+            />
             <PixelSprite
               pixels={r.pixels}
               size={S * fit}

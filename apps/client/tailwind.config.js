@@ -64,6 +64,54 @@ export default {
           from: { transform: 'translateX(0)' },
           to: { transform: 'translateX(-50%)' },
         },
+        // --- Feedback de jeu (juice) ---
+        shake: {
+          '0%,100%': { transform: 'translate(0,0)' },
+          '15%': { transform: 'translate(-6px,3px)' },
+          '30%': { transform: 'translate(5px,-4px)' },
+          '45%': { transform: 'translate(-5px,-2px)' },
+          '60%': { transform: 'translate(4px,4px)' },
+          '75%': { transform: 'translate(-3px,2px)' },
+        },
+        ripple: {
+          '0%': { transform: 'translate(-50%,-50%) scale(0.2)', opacity: '0.85' },
+          '100%': { transform: 'translate(-50%,-50%) scale(1)', opacity: '0' },
+        },
+        'pop-in': {
+          '0%': { transform: 'scale(0)', opacity: '0' },
+          '70%': { transform: 'scale(1.18)', opacity: '1' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+        rise: {
+          '0%': { transform: 'translateY(14px) scale(0.85)', opacity: '0' },
+          '100%': { transform: 'translateY(0) scale(1)', opacity: '1' },
+        },
+        'float-up': {
+          '0%': { transform: 'translate(-50%,0) scale(0.7)', opacity: '0' },
+          '25%': { transform: 'translate(-50%,-14px) scale(1.1)', opacity: '1' },
+          '100%': { transform: 'translate(-50%,-56px) scale(1)', opacity: '0' },
+        },
+        'pulse-ring': {
+          '0%': { transform: 'translate(-50%,-50%) scale(0.6)', opacity: '0.6' },
+          '100%': { transform: 'translate(-50%,-50%) scale(1.6)', opacity: '0' },
+        },
+        heartbeat: {
+          '0%,100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.09)' },
+        },
+        sheen: {
+          '0%': { backgroundPosition: '-150% 0' },
+          '60%,100%': { backgroundPosition: '250% 0' },
+        },
+        'confetti-fall': {
+          '0%': { transform: 'translateY(-10vh) rotate(0deg)', opacity: '1' },
+          '100%': { transform: 'translateY(105vh) rotate(720deg)', opacity: '0.9' },
+        },
+        'grow-bar': { from: { transform: 'scaleY(0)' }, to: { transform: 'scaleY(1)' } },
+        wiggle: {
+          '0%,100%': { transform: 'rotate(-6deg)' },
+          '50%': { transform: 'rotate(6deg)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 0.4s ease-out',
@@ -71,6 +119,17 @@ export default {
         pop: 'pop 0.4s cubic-bezier(0.22,1,0.36,1)',
         float: 'float 6s ease-in-out infinite',
         marquee: 'marquee 40s linear infinite',
+        shake: 'shake 0.45s ease-in-out',
+        ripple: 'ripple 0.6s ease-out forwards',
+        'pop-in': 'pop-in 0.45s cubic-bezier(0.34,1.56,0.64,1) both',
+        rise: 'rise 0.5s cubic-bezier(0.22,1,0.36,1) both',
+        'float-up': 'float-up 1.1s cubic-bezier(0.22,1,0.36,1) forwards',
+        'pulse-ring': 'pulse-ring 1.5s ease-out infinite',
+        heartbeat: 'heartbeat 0.85s ease-in-out infinite',
+        sheen: 'sheen 2.6s ease-in-out infinite',
+        confetti: 'confetti-fall 2.4s ease-in forwards',
+        'grow-bar': 'grow-bar 0.7s cubic-bezier(0.22,1,0.36,1) both',
+        wiggle: 'wiggle 0.5s ease-in-out',
       },
     },
   },

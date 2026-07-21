@@ -36,3 +36,27 @@ h3 {
   scrollbar-width: thin;
   scrollbar-color: theme('colors.line') transparent;
 }
+
+/* Éclat de particules : chaque particule part vers (--dx,--dy) en s'estompant.
+   Défini ici car il dépend de variables CSS custom posées par le composant. */
+@keyframes burst {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(0.3);
+    opacity: 0;
+  }
+}
+
+/* Respecte la préférence système « réduire les animations ». */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

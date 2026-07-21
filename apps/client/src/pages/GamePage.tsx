@@ -9,6 +9,7 @@ import { CamouflageBoard } from '../paint/CamouflageBoard.js';
 import { SeekerStage } from '../paint/SeekerStage.js';
 import { ResultsStage } from '../paint/ResultsStage.js';
 import { Wordmark } from '../components/ui.js';
+import { Confetti, CountUp } from '../components/effects.js';
 
 /**
  * Écran de partie. Les phases jouables (camouflage, recherche) passent en plein
@@ -155,7 +156,9 @@ function GameSidebar({
 
       <div
         className={`rounded-xl border p-3 text-center font-mono text-4xl tabular-nums transition-colors ${
-          urgent ? 'border-red-200 bg-red-50 text-red-600' : 'border-line bg-canvas text-accent'
+          urgent
+            ? 'animate-heartbeat border-red-200 bg-red-50 text-red-600'
+            : 'border-line bg-canvas text-accent'
         }`}
       >
         {formatTime(remaining)}
@@ -236,16 +239,24 @@ function FinalStandings({ room }: { room: RoomSnapshot }) {
   const order = [1, 0, 2]; // 2e, 1er, 3e (1er au centre, surélevé)
   const heights = ['h-20', 'h-28', 'h-16'];
   const medals = ['🥈', '🥇', '🥉'];
+  const delays = ['0.25s', '0s', '0.4s']; // le 1er pousse en premier
 
   return (
     <div className="animate-slide-up space-y-6 rounded-2xl border border-line bg-surface p-6 shadow-soft">
+      <Confetti />
       <div className="text-center">
-        <div className="text-3xl">🏆</div>
+        <div className="animate-pop-in text-4xl">🏆</div>
         <h2 className="mt-1 text-xl font-bold">Partie terminée</h2>
         {ranked[0] && (
           <p className="text-sm text-muted">
             <span className="font-semibold text-accent">{ranked[0].pseudo}</span> remporte la partie
-            avec {ranked[0].score} points !
+            avec{' '}
+            <CountUp
+              value={ranked[0].score}
+              className="font-semibold text-accent"
+              duration={1100}
+            />{' '}
+            points !
           </p>
         )}
       </div>
@@ -254,15 +265,22 @@ function FinalStandings({ room }: { room: RoomSnapshot }) {
         {order.map((oi, i) => {
           const p = podium[oi];
           if (!p) return <div key={i} className="w-24" />;
+          const isWinner = oi === 1;
           return (
             <div key={p.id} className="flex w-24 flex-col items-center">
-              <div className="text-2xl">{medals[oi]}</div>
+              <div
+                className={`text-2xl ${isWinner ? 'animate-wiggle' : ''}`}
+                style={isWinner ? { animationIterationCount: 3 } : undefined}
+              >
+                {medals[oi]}
+              </div>
               <div className="max-w-full truncate text-sm font-medium">{p.pseudo}</div>
               <div className="font-mono text-xs text-muted">{p.score}</div>
               <div
-                className={`mt-1 w-full rounded-t-lg ${heights[oi]} ${
-                  oi === 1 ? 'bg-accent' : 'bg-accent-soft'
+                className={`animate-grow-bar mt-1 w-full origin-bottom rounded-t-lg ${heights[oi]} ${
+                  isWinner ? 'bg-accent shadow-pop' : 'bg-accent-soft'
                 }`}
+                style={{ animationDelay: delays[oi] }}
               />
             </div>
           );
@@ -331,7 +349,8 @@ function Scoreboard({
         return (
           <li
             key={r.playerId}
-            className="flex items-center justify-between rounded-lg border border-stone-100 px-4 py-2"
+            className="animate-rise flex items-center justify-between rounded-lg border border-stone-100 px-4 py-2"
+            style={{ animationDelay: `${i * 90}ms` }}
           >
             <span className="flex items-center gap-3">
               <span className="w-5 text-center font-mono text-stone-400">{i + 1}</span>
@@ -355,7 +374,14 @@ function Scoreboard({
               ) : null}
             </span>
             <span className="flex items-center gap-3 font-mono">
-              {r.roundPoints > 0 && <span className="text-emerald-600">+{r.roundPoints}</span>}
+              {r.roundPoints > 0 && (
+                <span
+                  className="animate-pop-in font-semibold text-emerald-600"
+                  style={{ animationDelay: `${i * 90 + 350}ms` }}
+                >
+                  +{r.roundPoints}
+                </span>
+              )}
               <span className="font-semibold">{r.totalScore}</span>
             </span>
           </li>

@@ -10,6 +10,7 @@ import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
 import { PixelSprite } from './PixelSprite.js';
 import { artworkBg } from './artworkBg.js';
+import { Burst, Ripple } from '../components/effects.js';
 
 const S = CHARACTER_SIZE;
 const CLICK_MOVE_THRESHOLD = 6;
@@ -48,7 +49,11 @@ export function SeekerStage({
   const [foundIds, setFoundIds] = useState<Set<string>>(new Set());
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
-  const [flash, setFlash] = useState<{ ok: boolean; key: number } | null>(null);
+  // Impact d'un clic, en coordonnées écran (relatives au plateau) : anime onde,
+  // particules et libellé flottant pile à l'endroit cliqué.
+  const [impact, setImpact] = useState<{ ok: boolean; x: number; y: number; key: number } | null>(
+    null,
+  );
 
   // Le plateau épouse son conteneur (plein écran, pas de scroll).
   useLayoutEffect(() => {
@@ -71,9 +76,18 @@ export function SeekerStage({
   useEffect(() => {
     setFoundIds(new Set());
     setCooldownUntil(0);
-    setFlash(null);
+    setImpact(null);
     setCam({ zoom: 1, x: 0, y: 0 });
   }, [artwork.id]);
+
+  // Secoue brièvement le plateau (impact d'un clic). Redémarrage fiable via reflow.
+  const shakeBoard = () => {
+    const el = outerRef.current;
+    if (!el) return;
+    el.classList.remove('animate-shake');
+    void el.offsetWidth;
+    el.classList.add('animate-shake');
+  };
 
   // Caméra centrée tant qu'on n'a pas zoomé (suit aussi le redimensionnement).
   useEffect(() => {
@@ -152,19 +166,28 @@ export function SeekerStage({
     if (onCooldown) return;
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const ax = (clientX - rect.left - cam.x) / scale;
-    const ay = (clientY - rect.top - cam.y) / scale;
+    const sx = clientX - rect.left; // point de clic en coords écran (plateau)
+    const sy = clientY - rect.top;
+    const ax = (sx - cam.x) / scale;
+    const ay = (sy - cam.y) / scale;
     socket.emit(EVENTS.seekerClick, { x: ax, y: ay }, (res) => {
-      if (!res.ok) return setFlash({ ok: false, key: Date.now() });
-      if (res.hit) {
-        setFlash({ ok: true, key: Date.now() });
-      } else {
-        setFlash({ ok: false, key: Date.now() });
+      if (!res.ok) return;
+      const ok = res.hit;
+      setImpact({ ok, x: sx, y: sy, key: Date.now() });
+      shakeBoard();
+      if (!ok) {
         setCooldownUntil(Date.now() + WRONG_CLICK_COOLDOWN_MS);
         setNow(Date.now());
       }
     });
   };
+
+  // Retire l'impact après l'animation (les effets se démontent proprement).
+  useEffect(() => {
+    if (!impact) return;
+    const t = setTimeout(() => setImpact(null), 1100);
+    return () => clearTimeout(t);
+  }, [impact]);
 
   const zoomBy = (factor: number, px: number, py: number) => {
     setCam((c) => {
@@ -194,7 +217,14 @@ export function SeekerStage({
         </span>
         {interactive && (
           <span className="font-mono text-muted">
-            Trouvés {foundIds.size}/{totalHiders}
+            Trouvés{' '}
+            <span
+              key={foundIds.size}
+              className="animate-pop-in inline-block font-bold text-emerald-600"
+            >
+              {foundIds.size}
+            </span>
+            /{totalHiders}
           </span>
         )}
       </div>
@@ -224,7 +254,7 @@ export function SeekerStage({
               return (
                 <div
                   key={t.id}
-                  className={`pointer-events-none absolute ${isFound ? 'rounded-sm ring-2 ring-emerald-400' : ''}`}
+                  className="pointer-events-none absolute"
                   style={{
                     left: t.x * fitScale,
                     top: t.y * fitScale,
@@ -234,9 +264,17 @@ export function SeekerStage({
                 >
                   <PixelSprite pixels={t.pixels} size={S * fitScale} rotation={t.rotation} />
                   {isFound && (
-                    <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] text-white">
-                      ✓
-                    </span>
+                    <>
+                      {/* Halo qui pulse pour attirer l'œil sur la capture */}
+                      <span
+                        className="animate-pulse-ring absolute left-1/2 top-1/2 rounded-full border-2 border-emerald-400"
+                        style={{ width: S * fitScale, height: S * fitScale }}
+                      />
+                      <span className="animate-pop-in absolute inset-0 rounded-sm ring-2 ring-emerald-400" />
+                      <span className="animate-pop-in absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[11px] text-white shadow-soft">
+                        ✓
+                      </span>
+                    </>
                   )}
                 </div>
               );
@@ -248,7 +286,9 @@ export function SeekerStage({
               className="pointer-events-none absolute z-20 -translate-x-1 -translate-y-1 transition-[left,top] duration-75 ease-linear"
               style={{ left: cam.x + remoteCursor.x * scale, top: cam.y + remoteCursor.y * scale }}
             >
-              <svg width="26" height="26" viewBox="0 0 24 24" className="drop-shadow-md">
+              {/* Halo pulsant qui suit le chercheur : rend la traque « vivante » */}
+              <span className="animate-pulse-ring absolute left-2 top-2 h-8 w-8 rounded-full border-2 border-gold" />
+              <svg width="26" height="26" viewBox="0 0 24 24" className="relative drop-shadow-md">
                 <path
                   d="M5 3l14 8-6 1.5L9.5 19 5 3z"
                   fill="#f59e0b"
@@ -263,14 +303,26 @@ export function SeekerStage({
             </div>
           )}
 
-          {flash && (
+          {/* Impact d'un clic : onde + particules + libellé flottant, pile au clic */}
+          {impact && (
             <div
-              key={flash.key}
-              className={`animate-pop pointer-events-none absolute left-3 top-3 rounded-lg px-3 py-1.5 text-sm font-semibold text-white ${
-                flash.ok ? 'bg-emerald-500' : 'bg-red-500'
-              }`}
+              key={impact.key}
+              className="pointer-events-none absolute z-30"
+              style={{ left: impact.x, top: impact.y }}
             >
-              {flash.ok ? 'Trouvé ! 🎯' : 'Raté…'}
+              <Ripple
+                x={0}
+                y={0}
+                color={impact.ok ? 'rgba(52,211,153,0.85)' : 'rgba(248,113,113,0.85)'}
+              />
+              {impact.ok && <Burst x={0} y={0} count={14} />}
+              <span
+                className={`animate-float-up absolute left-0 top-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-bold text-white shadow-pop ${
+                  impact.ok ? 'bg-emerald-500' : 'bg-red-500'
+                }`}
+              >
+                {impact.ok ? 'Trouvé ! 🎯' : 'Raté…'}
+              </span>
             </div>
           )}
 
