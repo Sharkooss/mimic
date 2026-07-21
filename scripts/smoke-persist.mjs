@@ -91,8 +91,16 @@ async function verify() {
     if (!history || history.length !== 1) fail(`historique attendu 1 partie pour ${acct.pseudo}`);
     if (history[0].players !== 2 || history[0].rounds !== 2)
       fail(`historique incohérent: ${JSON.stringify(history[0])}`);
+    // XP (#20) : le compte doit avoir gagné de l'XP.
+    const me = await (
+      await fetch(BASE + '/api/auth/me', { headers: { Authorization: `Bearer ${acct.token}` } })
+    ).json();
+    if (!me.user || me.user.xp <= 0) fail(`XP non attribuée pour ${acct.pseudo}`);
+    // Profil public (#19).
+    const prof = await (await fetch(BASE + '/api/users/' + acct.pseudo)).json();
+    if (!prof.profile || prof.profile.pseudo !== acct.pseudo) fail('profil public KO');
     ok(
-      `${acct.pseudo}: gamesPlayed=1, timesSeeker=${stats.timesSeeker}, playersFound=${stats.playersFound}, timesFound=${stats.timesFound}, camoSamples=${stats.camouflageSamples}, historique=1 (2 joueurs, 2 manches)`,
+      `${acct.pseudo}: gamesPlayed=1, timesSeeker=${stats.timesSeeker}, playersFound=${stats.playersFound}, camoSamples=${stats.camouflageSamples}, XP=${me.user.xp} (niv ${me.user.level}), historique=1, profil public OK`,
     );
   }
   console.log('✅ smoke persist OK');
