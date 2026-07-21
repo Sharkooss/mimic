@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentType } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Ghost, Globe, Lock, Palette, Save, Search } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, Ghost, Globe, Lock, Palette, Save, Search, Users } from 'lucide-react';
 import { EVENTS, LOBBY, MODE_META, type AckResult, type RoomListing } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
 import { useAuthStore } from '../store/authStore.js';
@@ -172,6 +172,21 @@ export function HomePage(): JSX.Element {
         </div>
 
         {error && <p className="text-center text-sm text-red-600">{error}</p>}
+
+        {/* Partie locale (hot-seat, 2 joueurs même écran) */}
+        <Link
+          to="/local"
+          className="flex items-center gap-2.5 rounded-xl border border-line bg-surface px-4 py-2.5 text-sm transition hover:border-accent/40 hover:shadow-soft"
+        >
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
+            <Users className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="font-semibold">Partie locale</span>
+            <span className="text-muted"> — 2 joueurs sur le même écran</span>
+          </span>
+          <ArrowRight className="h-4 w-4 shrink-0 text-muted" />
+        </Link>
 
         {/* Parties publiques (défilement interne si besoin) */}
         <Card className="flex min-h-0 flex-1 flex-col p-5">

@@ -4,8 +4,7 @@
 // Usage : node scripts/test-artwork-scoring.mjs  (après build du serveur)
 const { ARTWORKS } = await import('../apps/server/dist/game/artworks.js');
 const { sampleArtworkBackground } = await import('../apps/server/dist/game/artworkPixels.js');
-const { scoreCamouflage } = await import('../apps/server/dist/game/camouflage.js');
-const { CHARACTER_SIZE } = await import('../packages/shared/dist/index.js');
+const { CHARACTER_SIZE, scoreCamouflage } = await import('../packages/shared/dist/index.js');
 
 const S = CHARACTER_SIZE;
 const fail = (m) => {

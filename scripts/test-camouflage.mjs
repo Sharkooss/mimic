@@ -1,7 +1,6 @@
 // Test du moteur de scoring (#14) sur des cas synthétiques.
 // Usage: node scripts/test-camouflage.mjs (après build du serveur)
-import { scoreCamouflage } from '../apps/server/dist/game/camouflage.js';
-import { CHARACTER_SIZE } from '../packages/shared/dist/index.js';
+import { CHARACTER_SIZE, scoreCamouflage } from '../packages/shared/dist/index.js';
 
 const S = CHARACTER_SIZE;
 

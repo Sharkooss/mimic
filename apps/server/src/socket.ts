@@ -6,11 +6,13 @@ import {
   LOBBY,
   MODE_META,
   WRONG_CLICK_COOLDOWN_MS,
+  characterHit,
   createRoomSchema,
   joinRoomSchema,
   lockCharacterSchema,
   placementSchema,
   presenceUpdateSchema,
+  scoreCamouflage,
   seekerClickSchema,
   seekerCursorSchema,
   setModeSchema,
@@ -18,8 +20,6 @@ import {
   type ClientToServerEvents,
   type ServerToClientEvents,
 } from '@mimic/shared';
-import { scoreCamouflage } from './game/camouflage.js';
-import { characterHit } from './game/hitTest.js';
 import { sampleArtworkBackground } from './game/artworkPixels.js';
 import { verifyToken } from './auth/tokens.js';
 import { env } from './env.js';

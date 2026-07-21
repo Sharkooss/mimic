@@ -1,7 +1,8 @@
-import type { CamouflageBreakdown } from '@mimic/shared';
+import type { CamouflageBreakdown } from './types.js';
 
 /**
- * Moteur de scoring du camouflage (0-100), issue #14.
+ * Moteur de scoring du camouflage (0-100), issue #14. Partagé client/serveur :
+ * le serveur l'utilise au verrouillage, le mode local le rejoue côté client.
  *
  * Trois critères perceptuels comparant le personnage à la zone du tableau qui se
  * trouve derrière lui (pixels alignés, même empreinte S×S) :

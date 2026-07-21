@@ -1,18 +1,20 @@
-import { CHARACTER_SIZE, HIT_TOLERANCE, type CharacterRotation } from '@mimic/shared';
+import { CHARACTER_SIZE, HIT_TOLERANCE } from './constants.js';
+import type { CharacterRotation } from './constants.js';
 
 const S = CHARACTER_SIZE;
 
 /**
- * Hitbox au pixel près (issue hitbox trop large). Un clic ne « touche » un caché
- * que s'il tombe sur un pixel opaque de sa silhouette peinte — plus sur la boîte
- * englobante 96×96 dont la majeure partie est transparente. Une petite tolérance
- * (HIT_TOLERANCE px) reste, pour rester jouable au bord des contours.
+ * Hitbox au pixel près. Un clic ne « touche » un caché que s'il tombe sur un
+ * pixel opaque de sa silhouette peinte — plus sur la boîte englobante dont la
+ * majeure partie est transparente. Une petite tolérance (HIT_TOLERANCE px) reste,
+ * pour rester jouable au bord des contours.
  *
  * `pixels` est l'empreinte RGBA (S·S·4) telle que peinte (rotation 0) ; on
- * inverse la rotation d'affichage pour retrouver le pixel source visé.
+ * inverse la rotation d'affichage pour retrouver le pixel source visé. Partagé
+ * client/serveur (le mode local rejoue la détection côté client).
  */
 export function characterHit(
-  pixels: Uint8ClampedArray,
+  pixels: ArrayLike<number>,
   ox: number,
   oy: number,
   rotation: CharacterRotation,

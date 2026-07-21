@@ -13,7 +13,7 @@ import {
 import { clearRoomTimer, freshMatchStats, snapshot, type Room } from './rooms.js';
 import { pickArtworkSequence } from './artworks.js';
 import { persistMatch } from './persistence.js';
-import { scoreCamouflage } from './camouflage.js';
+import { scoreCamouflage } from '@mimic/shared';
 import { sampleArtworkBackground } from './artworkPixels.js';
 
 type IO = Server<ClientToServerEvents, ServerToClientEvents>;

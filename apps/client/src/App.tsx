@@ -13,6 +13,7 @@ import { ProfilePage } from './pages/ProfilePage.js';
 import { LeaderboardPage } from './pages/LeaderboardPage.js';
 import { PublicProfilePage } from './pages/PublicProfilePage.js';
 import { GalleryPage } from './pages/GalleryPage.js';
+import { LocalGamePage } from './pages/LocalGamePage.js';
 
 export default function App(): JSX.Element {
   useSocket();
@@ -113,6 +114,7 @@ export default function App(): JSX.Element {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
           <Route path="/gallery" element={<GalleryPage />} />
+          <Route path="/local" element={<LocalGamePage />} />
           <Route path="/u/:pseudo" element={<PublicProfilePage />} />
           <Route path="/paint" element={<PaintPage />} />
         </Routes>

@@ -1,7 +1,6 @@
 // Test de la hitbox au pixel près (characterHit) + inversion de rotation.
 // Usage : node scripts/test-hitbox.mjs   (après build du serveur + shared)
-import { characterHit } from '../apps/server/dist/game/hitTest.js';
-import { CHARACTER_SIZE, HIT_TOLERANCE } from '../packages/shared/dist/index.js';
+import { CHARACTER_SIZE, HIT_TOLERANCE, characterHit } from '../packages/shared/dist/index.js';
 
 const S = CHARACTER_SIZE;
 let failed = 0;
