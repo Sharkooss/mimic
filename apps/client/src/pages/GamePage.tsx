@@ -176,7 +176,7 @@ function HiderCamouflage({ room }: { room: RoomSnapshot }) {
         <p className="text-sm text-stone-500">
           {step === 'place'
             ? 'Place ton personnage sur le tableau, puis verrouille ta pose.'
-            : 'Peins ton personnage pour le fondre dans l’œuvre autour, puis verrouille ton camouflage.'}
+            : 'Capture les couleurs du tableau (pipette 💧 ou palette 🎨) et peins ton personnage pour disparaître.'}
         </p>
       </div>
 

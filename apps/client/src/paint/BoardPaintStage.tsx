@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CHARACTER_SIZE, type Artwork } from '@mimic/shared';
 import { useCharacterStore } from '../store/characterStore.js';
 import { useCharacterPainting } from './useCharacterPainting.js';
 import { PaintToolbar } from './PaintToolbar.js';
 import { artworkBg } from './artworkBg.js';
+import { rgbToHex } from './paintOps.js';
 
 const S = CHARACTER_SIZE;
 const VIEW = 460;
@@ -12,10 +13,10 @@ const CHAR_DISP = 320;
 const SCALE = CHAR_DISP / S;
 
 /**
- * Peinture du personnage directement sur le tableau (issue #35).
- * Le personnage est affiché à sa position, centré dans le viewport, avec le fond
- * de l'œuvre visible tout autour : on peint pour se fondre dans l'environnement
- * réel. Les parties non peintes (hors silhouette) laissent voir l'œuvre derrière.
+ * Peinture du personnage directement sur le tableau (issue #35 + refonte).
+ * Le personnage est centré, l'œuvre visible autour. La pipette échantillonne les
+ * VRAIES couleurs du tableau (n'importe où sur le plateau) et une palette est
+ * auto-extraite de l'œuvre → on capture les teintes du fond pour s'y fondre.
  */
 export function BoardPaintStage({ artwork }: { artwork: Artwork }): JSX.Element {
   const paint = useCharacterPainting();
@@ -24,11 +25,14 @@ export function BoardPaintStage({ artwork }: { artwork: Artwork }): JSX.Element 
   const pixels = useCharacterStore((s) => s.pixels);
   const tick = useCharacterStore((s) => s.tick);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const sampleRef = useRef<HTMLCanvasElement | null>(null);
+  const [artColors, setArtColors] = useState<string[]>([]);
 
-  // Décalage du fond pour que l'empreinte du perso soit centrée dans le viewport.
   const originX = VIEW / 2 - (x + S / 2) * SCALE;
   const originY = VIEW / 2 - (y + S / 2) * SCALE;
 
+  // Redessine le personnage.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !pixels) return;
@@ -38,6 +42,39 @@ export function BoardPaintStage({ artwork }: { artwork: Artwork }): JSX.Element 
     img.data.set(pixels);
     ctx.putImageData(img, 0, 0);
   }, [pixels, tick]);
+
+  // Charge l'œuvre dans un canvas hors-écran : échantillonnage pipette + palette.
+  useEffect(() => {
+    if (!artwork.imageUrl) return;
+    let alive = true;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      if (!alive) return;
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0);
+      sampleRef.current = c;
+      setArtColors(extractPalette(ctx, c.width, c.height));
+    };
+    img.src = artwork.imageUrl;
+    return () => {
+      alive = false;
+    };
+  }, [artwork.imageUrl]);
+
+  /** Couleur du tableau (coordonnées de l'œuvre) sous un point, ou null. */
+  const sampleArtwork = (ax: number, ay: number): string | null => {
+    const c = sampleRef.current;
+    if (!c) return null;
+    const px = Math.max(0, Math.min(c.width - 1, Math.round(ax)));
+    const py = Math.max(0, Math.min(c.height - 1, Math.round(ay)));
+    const d = c.getContext('2d')!.getImageData(px, py, 1, 1).data;
+    return rgbToHex(d[0]!, d[1]!, d[2]!);
+  };
 
   const toPixel = (e: React.PointerEvent) => {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -61,12 +98,26 @@ export function BoardPaintStage({ artwork }: { artwork: Artwork }): JSX.Element 
     paint.pointerMove(p.x, p.y);
   };
 
-  const cursor = !paint.ready ? 'wait' : paint.tool === 'pipette' ? 'copy' : 'crosshair';
+  // Pipette : capture la couleur du tableau n'importe où sur le plateau.
+  const onPipette = (e: React.PointerEvent) => {
+    const rect = viewportRef.current!.getBoundingClientRect();
+    const ax = (e.clientX - rect.left - originX) / SCALE;
+    const ay = (e.clientY - rect.top - originY) / SCALE;
+    const hex = sampleArtwork(ax, ay);
+    if (hex) {
+      paint.setColor(hex);
+      paint.setTool('brush');
+    }
+  };
+
+  const isPipette = paint.tool === 'pipette';
+  const cursor = !paint.ready ? 'wait' : 'crosshair';
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row">
+    <div className="flex flex-col gap-5 lg:flex-row">
       <div
-        className="relative shrink-0 self-start overflow-hidden rounded-xl border border-stone-300 bg-stone-200"
+        ref={viewportRef}
+        className="relative shrink-0 self-start overflow-hidden rounded-xl2 border border-line bg-night-800 shadow-frame"
         style={{ width: VIEW, height: VIEW }}
       >
         {/* Fond de l'œuvre, aligné aux coordonnées du tableau */}
@@ -81,12 +132,13 @@ export function BoardPaintStage({ artwork }: { artwork: Artwork }): JSX.Element 
         />
         {/* Cadre de la zone peignable (empreinte du personnage) */}
         <div
-          className="pointer-events-none absolute rounded-sm ring-1 ring-white/70"
+          className="pointer-events-none absolute rounded-sm ring-2 ring-gold/70"
           style={{
             left: originX + x * SCALE,
             top: originY + y * SCALE,
             width: CHAR_DISP,
             height: CHAR_DISP,
+            boxShadow: '0 0 0 9999px rgba(15,12,20,0.35)',
           }}
         />
         {/* Canvas du personnage (transparent → laisse voir l'œuvre derrière) */}
@@ -108,9 +160,48 @@ export function BoardPaintStage({ artwork }: { artwork: Artwork }): JSX.Element 
             cursor,
           }}
         />
+        {/* Surcouche pipette : capte les clics sur tout le plateau */}
+        {isPipette && (
+          <div
+            onPointerDown={onPipette}
+            className="absolute inset-0 z-10"
+            style={{ cursor: 'copy' }}
+          />
+        )}
+        {/* Indice pipette */}
+        {isPipette && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-night/80 px-3 py-1.5 text-center text-xs font-medium text-white">
+            💧 Clique sur le tableau pour capturer sa couleur
+          </div>
+        )}
       </div>
 
-      <PaintToolbar paint={paint} />
+      <PaintToolbar paint={paint} artworkColors={artColors} />
     </div>
   );
+}
+
+/** Extrait ~10 couleurs représentatives d'une œuvre (buckets 5 bits, par fréquence). */
+function extractPalette(ctx: CanvasRenderingContext2D, w: number, h: number): string[] {
+  const data = ctx.getImageData(0, 0, w, h).data;
+  const step = Math.max(1, Math.floor(Math.min(w, h) / 48));
+  const buckets = new Map<number, { r: number; g: number; b: number; n: number }>();
+  for (let py = 0; py < h; py += step) {
+    for (let px = 0; px < w; px += step) {
+      const i = (py * w + px) * 4;
+      if (data[i + 3]! < 128) continue;
+      const key = ((data[i]! >> 5) << 10) | ((data[i + 1]! >> 5) << 5) | (data[i + 2]! >> 5);
+      const b = buckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0 };
+      b.r += data[i]!;
+      b.g += data[i + 1]!;
+      b.b += data[i + 2]!;
+      b.n++;
+      buckets.set(key, b);
+    }
+  }
+  return [...buckets.values()]
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 10)
+    .map((b) => rgbToHex(Math.round(b.r / b.n), Math.round(b.g / b.n), Math.round(b.b / b.n)))
+    .sort((a, b) => parseInt(a.slice(1), 16) - parseInt(b.slice(1), 16));
 }
