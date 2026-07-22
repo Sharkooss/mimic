@@ -84,6 +84,14 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
               showLabels={isHiderSeeking}
               myId={myId}
               focusTarget={focus}
+              elapsedFrac={
+                room.phase === 'seeking' &&
+                isSeeker &&
+                remaining != null &&
+                room.settings.seekingSec > 0
+                  ? Math.max(0, Math.min(1, 1 - remaining / room.settings.seekingSec))
+                  : null
+              }
             />
           )}
         </main>

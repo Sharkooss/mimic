@@ -12,6 +12,8 @@ import { useGameStore } from '../store/gameStore.js';
 import { PixelSprite } from './PixelSprite.js';
 import { artworkBg } from './artworkBg.js';
 import { Burst, Ripple } from '../components/effects.js';
+import { HintOverlay } from './HintOverlay.js';
+import { computeHintZones, hintRadius } from './hintZones.js';
 
 const S = CHARACTER_SIZE;
 const CLICK_MOVE_THRESHOLD = 6;
@@ -47,6 +49,7 @@ export function SeekerStage({
   showLabels = false,
   myId = null,
   focusTarget = null,
+  elapsedFrac = null,
 }: {
   artwork: Artwork;
   interactive: boolean;
@@ -55,6 +58,8 @@ export function SeekerStage({
   showLabels?: boolean;
   myId?: string | null;
   focusTarget?: { x: number; y: number; key: number } | null;
+  /** Fraction du temps de recherche écoulée (chercheur) → zones d'indice. */
+  elapsedFrac?: number | null;
 }): JSX.Element {
   const outerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -234,6 +239,16 @@ export function SeekerStage({
   const cursor = interactive ? (onCooldown ? 'not-allowed' : 'crosshair') : 'grab';
   const shown = players;
 
+  // Zones d'indice (chercheur, après HINT_START_FRAC) sur les cachés non trouvés.
+  const hintR = interactive && elapsedFrac != null ? hintRadius(elapsedFrac, artwork) : null;
+  const hintZones =
+    hintR != null
+      ? computeHintZones(
+          players.filter((p) => !foundIds.has(p.id)).map((p) => ({ id: p.id, x: p.x, y: p.y })),
+          hintR,
+        )
+      : [];
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-line bg-surface px-4 text-sm">
@@ -333,6 +348,9 @@ export function SeekerStage({
               );
             })}
           </div>
+
+          {/* Zones d'indice « projecteur » (chercheur) */}
+          <HintOverlay zones={hintZones} camX={cam.x} camY={cam.y} scale={scale} />
 
           {!interactive && remoteCursor && (
             <div

@@ -216,7 +216,13 @@ export function LocalGamePage(): JSX.Element {
           </span>
         </TopBar>
         <div className="min-h-0 flex-1">
-          <LocalSeekBoard artwork={artwork} character={hidden} found={found} onFound={onFound} />
+          <LocalSeekBoard
+            artwork={artwork}
+            character={hidden}
+            found={found}
+            onFound={onFound}
+            elapsedFrac={Math.max(0, Math.min(1, 1 - remaining / SEEK_SECONDS))}
+          />
         </div>
       </div>
     );

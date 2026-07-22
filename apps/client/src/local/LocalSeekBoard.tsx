@@ -10,6 +10,8 @@ import {
 import { PixelSprite } from '../paint/PixelSprite.js';
 import { artworkBg } from '../paint/artworkBg.js';
 import { Burst, Ripple } from '../components/effects.js';
+import { HintOverlay } from '../paint/HintOverlay.js';
+import { computeHintZones, hintRadius } from '../paint/hintZones.js';
 
 const S = CHARACTER_SIZE;
 const CLICK_MOVE_THRESHOLD = 6;
@@ -37,11 +39,14 @@ export function LocalSeekBoard({
   character,
   found,
   onFound,
+  elapsedFrac = null,
 }: {
   artwork: Artwork;
   character: HiddenCharacter;
   found: boolean;
   onFound: () => void;
+  /** Fraction du temps écoulée → zone d'indice qui se resserre. */
+  elapsedFrac?: number | null;
 }): JSX.Element {
   const outerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -175,6 +180,11 @@ export function LocalSeekBoard({
   const cursor = found ? 'default' : onCooldown ? 'not-allowed' : 'crosshair';
   const charDisp = S * fitScale;
 
+  // Zone d'indice (après HINT_START_FRAC, tant que non trouvé).
+  const hintR = !found && elapsedFrac != null ? hintRadius(elapsedFrac, artwork) : null;
+  const hintZones =
+    hintR != null ? computeHintZones([{ id: 'local', x: character.x, y: character.y }], hintR) : [];
+
   return (
     <div ref={outerRef} className="relative h-full w-full overflow-hidden bg-night-800">
       <div
@@ -219,6 +229,9 @@ export function LocalSeekBoard({
             )}
           </div>
         </div>
+
+        {/* Zone d'indice « projecteur » */}
+        <HintOverlay zones={hintZones} camX={cam.x} camY={cam.y} scale={scale} />
 
         {impact && (
           <div
