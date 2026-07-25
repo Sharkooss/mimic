@@ -117,6 +117,8 @@ export interface ClientToServerEvents {
   'room:start': (ack: (res: AckResult) => void) => void;
   /** Fin de partie → retour au salon d'attente pour rejouer (hôte uniquement). */
   'room:return-to-lobby': (ack: (res: AckResult) => void) => void;
+  /** Fermer définitivement le salon (hôte uniquement) : éjecte tout le monde. */
+  'room:close': (ack: (res: AckResult) => void) => void;
   /** S'abonner à la liste des salons publics (navigateur de parties). */
   'lobby:watch': (ack: (res: AckResult<{ rooms: RoomListing[] }>) => void) => void;
   'lobby:unwatch': () => void;
@@ -206,6 +208,8 @@ export interface ServerToClientEvents {
     pixels: number[];
   }) => void;
   'room:snapshot': (snapshot: RoomSnapshot) => void;
+  /** Le salon a été fermé (par l'hôte ou par inactivité) : le client repart à l'accueil. */
+  'room:closed': (reason: string) => void;
   'phase:changed': (phase: RoomSnapshot['phase'], phaseEndsAt: number | null) => void;
   /** Curseur du chercheur (coordonnées tableau) diffusé aux autres joueurs pendant la traque. */
   'seeker:cursor': (data: { x: number; y: number }) => void;
@@ -246,6 +250,8 @@ export const EVENTS = {
   roomSetSettings: 'room:set-settings',
   roomStart: 'room:start',
   roomReturnToLobby: 'room:return-to-lobby',
+  roomClose: 'room:close',
+  roomClosed: 'room:closed',
   lobbyWatch: 'lobby:watch',
   lobbyUnwatch: 'lobby:unwatch',
   publicRooms: 'rooms:public',

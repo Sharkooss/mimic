@@ -1,6 +1,6 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Globe, Lock, Palette, Search } from 'lucide-react';
+import { Globe, Lock, Palette, Search, Trash2 } from 'lucide-react';
 import {
   EVENTS,
   GAME_MODES,
@@ -80,9 +80,7 @@ export function LobbyPage(): JSX.Element {
               : 'Partage-le pour inviter tes amis.'}
           </div>
         </div>
-        <Button variant="ghost" onClick={leave}>
-          Quitter
-        </Button>
+        <RoomActions isHost={isHost} onLeave={leave} onClosed={() => navigate('/')} />
       </Card>
 
       <div>
@@ -156,6 +154,67 @@ export function LobbyPage(): JSX.Element {
       ) : (
         <p className="text-center text-sm text-muted">En attente du lancement par l’hôte…</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Actions du salon : « Quitter » pour tous, et pour l'hôte un « Fermer le salon »
+ * à double-clic (confirmation inline) qui supprime le salon pour tout le monde.
+ */
+function RoomActions({
+  isHost,
+  onLeave,
+  onClosed,
+}: {
+  isHost: boolean;
+  onLeave: () => void;
+  onClosed: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+
+  const close = () => {
+    if (!confirming) {
+      setConfirming(true);
+      return;
+    }
+    socket.emit(EVENTS.roomClose, (res) => {
+      // Fermeture confirmée par le serveur : redirection (le broadcast room:closed
+      // gère aussi les autres joueurs).
+      if (res.ok) onClosed();
+      else setConfirming(false);
+    });
+  };
+
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      {isHost &&
+        (confirming ? (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={close}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+            >
+              <Trash2 className="h-4 w-4" /> Confirmer
+            </button>
+            <button
+              onClick={() => setConfirming(false)}
+              className="rounded-lg px-2 py-2 text-sm text-muted transition hover:text-ink"
+            >
+              Annuler
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={close}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+          >
+            <Trash2 className="h-4 w-4" /> Fermer le salon
+          </button>
+        ))}
+      <Button variant="ghost" onClick={onLeave}>
+        Quitter
+      </Button>
     </div>
   );
 }

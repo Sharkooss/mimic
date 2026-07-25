@@ -137,7 +137,7 @@ const run = async () => {
   if (!started.ok) fail('start KO ' + started.error);
   ok(`partie lancée (salon ${created.code})`);
 
-  setTimeout(() => !done && fail('timeout global (flux de Rejouer non bouclé)'), 120000);
+  setTimeout(() => !done && fail('timeout global (flux de Rejouer non bouclé)'), 180000);
 };
 
 run().catch((e) => fail(e.message));

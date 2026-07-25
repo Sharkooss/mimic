@@ -98,6 +98,8 @@ export interface Room {
   seekerOrder: string[];
   /** Timer de la phase courante (transition automatique). */
   timer: ReturnType<typeof setTimeout> | null;
+  /** Timer d'inactivité : ferme le salon après un délai sans join/leave. */
+  inactivityTimer: ReturnType<typeof setTimeout> | null;
 }
 
 const rooms = new Map<string, Room>();
@@ -133,6 +135,7 @@ export function createRoom(mode: GameMode, visibility: RoomVisibility = 'private
     artworkSequence: [],
     seekerOrder: [],
     timer: null,
+    inactivityTimer: null,
   };
   rooms.set(room.code, room);
   return room;

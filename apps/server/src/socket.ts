@@ -47,6 +47,9 @@ import {
 /** Délai de grâce (ms) avant de retirer un joueur déconnecté (fenêtre de reconnexion). */
 const RECONNECT_GRACE_MS = 30_000;
 
+/** Délai (ms) sans join/leave après lequel un salon en attente se ferme tout seul. */
+const ROOM_INACTIVITY_MS = env.ROOM_INACTIVITY_MS;
+
 interface SocketData {
   roomCode: string | null;
   playerId: string;
@@ -105,6 +108,7 @@ export function setupSocket(
 
       const room = createRoom(parsed.data.mode, parsed.data.visibility);
       addPlayer(room, socket, true);
+      touchRoom(io, room);
       broadcastSnapshot(io, room);
       broadcastLobby(io);
       ack({ ok: true, code: room.code });
@@ -138,6 +142,7 @@ export function setupSocket(
       }
 
       addPlayer(room, socket, false);
+      touchRoom(io, room);
       broadcastSnapshot(io, room);
       broadcastLobby(io);
       ack({ ok: true, code: room.code });
@@ -205,8 +210,20 @@ export function setupSocket(
       }
       const res = returnToLobby(io, room);
       if (!res.ok) return ack({ ok: false, error: res.error ?? 'Impossible de revenir au salon.' });
+      touchRoom(io, room); // salon de nouveau en attente → relance l'horloge d'inactivité
       broadcastLobby(io); // le salon redevient rejoignable → réapparaît dans la liste publique
       ack({ ok: true });
+    });
+
+    socket.on(EVENTS.roomClose, (ack) => {
+      const code = socket.data.roomCode;
+      const room = code ? getRoom(code) : undefined;
+      if (!room) return ack({ ok: false, error: 'Salon introuvable.' });
+      if (room.hostId !== socket.data.playerId) {
+        return ack({ ok: false, error: "Seul l'hôte peut fermer le salon." });
+      }
+      ack({ ok: true });
+      closeRoom(io, room, "L'hôte a fermé le salon.");
     });
 
     socket.on(EVENTS.characterMove, (payload) => {
@@ -433,6 +450,7 @@ function reattach(
     if (room.seekerId === player.id) sendSeekingTargets(io, room);
     else if (player.role === 'hider') sendCoHiders(io, room);
   }
+  touchRoom(io, room);
   broadcastSnapshot(io, room);
 }
 
@@ -451,6 +469,7 @@ function removePlayer(
   // Salon vidé : on arrête les timers et on supprime.
   if (room.players.size === 0) {
     clearRoomTimer(room);
+    if (room.inactivityTimer) clearTimeout(room.inactivityTimer);
     deleteRoom(room.code);
     broadcastLobby(io);
     return;
@@ -464,7 +483,48 @@ function removePlayer(
     room.hostId = next?.id ?? null;
     if (next) next.isHost = true;
   }
+  touchRoom(io, room); // un départ compte comme une activité
   broadcastSnapshot(io, room);
+  broadcastLobby(io);
+}
+
+/**
+ * (Ré)arme l'horloge d'inactivité d'un salon : sans join/leave pendant
+ * `ROOM_INACTIVITY_MS`, un salon EN ATTENTE se ferme tout seul. Si une partie est
+ * en cours quand l'horloge sonne, on la repousse (on ne coupe jamais une partie).
+ */
+function touchRoom(io: Server<ClientToServerEvents, ServerToClientEvents>, room: Room): void {
+  if (room.inactivityTimer) clearTimeout(room.inactivityTimer);
+  room.inactivityTimer = setTimeout(() => {
+    room.inactivityTimer = null;
+    if (room.phase === 'lobby') {
+      closeRoom(io, room, 'Salon fermé : aucune activité pendant 5 minutes.');
+    } else {
+      touchRoom(io, room);
+    }
+  }, ROOM_INACTIVITY_MS);
+}
+
+/** Ferme un salon : prévient les clients, coupe les timers et le supprime. */
+function closeRoom(
+  io: Server<ClientToServerEvents, ServerToClientEvents>,
+  room: Room,
+  reason: string,
+): void {
+  clearRoomTimer(room);
+  if (room.inactivityTimer) {
+    clearTimeout(room.inactivityTimer);
+    room.inactivityTimer = null;
+  }
+  for (const p of room.players.values()) {
+    if (p.removeTimer) {
+      clearTimeout(p.removeTimer);
+      p.removeTimer = null;
+    }
+  }
+  io.to(room.code).emit(EVENTS.roomClosed, reason);
+  io.in(room.code).socketsLeave(room.code);
+  deleteRoom(room.code);
   broadcastLobby(io);
 }
 

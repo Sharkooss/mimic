@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
-import { Routes, Route, Link } from 'react-router-dom';
+import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { Images, Medal } from 'lucide-react';
+import { EVENTS } from '@mimic/shared';
+import { socket } from './lib/socket.js';
 import { useSocket } from './hooks/useSocket.js';
 import { useGameStore } from './store/gameStore.js';
 import { useAuthStore } from './store/authStore.js';
@@ -17,6 +19,7 @@ import { LocalGamePage } from './pages/LocalGamePage.js';
 
 export default function App(): JSX.Element {
   useSocket();
+  const navigate = useNavigate();
   const connected = useGameStore((s) => s.connected);
   const user = useAuthStore((s) => s.user);
   const enabled = useAuthStore((s) => s.enabled);
@@ -38,6 +41,19 @@ export default function App(): JSX.Element {
       alive = false;
     };
   }, [setEnabled, setUser, setReady]);
+
+  // Salon fermé (hôte ou inactivité) : on vide l'état et on repart à l'accueil.
+  useEffect(() => {
+    const onClosed = (reason: string) => {
+      useGameStore.getState().setRoom(null);
+      useGameStore.getState().setToast(reason || 'Le salon a été fermé.');
+      navigate('/');
+    };
+    socket.on(EVENTS.roomClosed, onClosed);
+    return () => {
+      socket.off(EVENTS.roomClosed, onClosed);
+    };
+  }, [navigate]);
 
   return (
     <div className="min-h-screen">

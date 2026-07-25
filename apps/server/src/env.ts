@@ -14,6 +14,8 @@ const schema = z.object({
   CLIENT_DIST_PATH: z.string().default('../client/dist'),
   /** Origines CORS autorisées en dev (séparées par des virgules). */
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  /** Délai (ms) sans join/leave avant fermeture auto d'un salon en attente. */
+  ROOM_INACTIVITY_MS: z.coerce.number().int().positive().default(5 * 60_000),
 });
 
 const parsed = schema.safeParse(process.env);
