@@ -132,7 +132,9 @@ const run = async () => {
   const joined = await new Promise((r) => B.sock.emit(EVENTS.roomJoin, { code: created.code }, r));
   if (!joined.ok) fail('join KO');
   // Durées minimales pour accélérer le test.
-  await new Promise((r) => A.sock.emit(EVENTS.roomSetSettings, { camouflageSec: 15, seekingSec: 30 }, r));
+  await new Promise((r) =>
+    A.sock.emit(EVENTS.roomSetSettings, { camouflageSec: 15, seekingSec: 30 }, r),
+  );
   const started = await new Promise((r) => A.sock.emit(EVENTS.roomStart, r));
   if (!started.ok) fail('start KO ' + started.error);
   ok(`partie lancée (salon ${created.code})`);

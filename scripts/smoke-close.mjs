@@ -29,7 +29,9 @@ async function main() {
   const a = connect('A');
   const b = connect('B');
   const c = connect('C');
-  await Promise.all(['A', 'B', 'C'].map((_, i) => new Promise((r) => [a, b, c][i].sock.on('connect', r))));
+  await Promise.all(
+    ['A', 'B', 'C'].map((_, i) => new Promise((r) => [a, b, c][i].sock.on('connect', r))),
+  );
   await wait(200);
 
   // ── 1. Fermeture manuelle par l'hôte ──────────────────────────────────────
@@ -73,7 +75,8 @@ async function main() {
   if (a.closed) fail("le salon s'est fermé malgré une activité récente (join)");
   ok('activité (join) : expiration repoussée, salon toujours ouvert');
   await wait(1200); // > 1500 depuis le join, plus d'activité → doit fermer
-  if (!a.closed || !b.closed) fail("le salon ne s'est pas fermé après la nouvelle période d'inactivité");
+  if (!a.closed || !b.closed)
+    fail("le salon ne s'est pas fermé après la nouvelle période d'inactivité");
   ok('après la nouvelle période sans activité : salon fermé');
 
   console.log('✅ smoke close OK');
