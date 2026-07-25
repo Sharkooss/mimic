@@ -115,6 +115,8 @@ export interface ClientToServerEvents {
   'room:set-mode': (payload: { mode: GameMode }, ack: (res: AckResult) => void) => void;
   'room:set-settings': (payload: SetSettingsPayload, ack: (res: AckResult) => void) => void;
   'room:start': (ack: (res: AckResult) => void) => void;
+  /** Fin de partie → retour au salon d'attente pour rejouer (hôte uniquement). */
+  'room:return-to-lobby': (ack: (res: AckResult) => void) => void;
   /** S'abonner à la liste des salons publics (navigateur de parties). */
   'lobby:watch': (ack: (res: AckResult<{ rooms: RoomListing[] }>) => void) => void;
   'lobby:unwatch': () => void;
@@ -243,6 +245,7 @@ export const EVENTS = {
   roomSetMode: 'room:set-mode',
   roomSetSettings: 'room:set-settings',
   roomStart: 'room:start',
+  roomReturnToLobby: 'room:return-to-lobby',
   lobbyWatch: 'lobby:watch',
   lobbyUnwatch: 'lobby:unwatch',
   publicRooms: 'rooms:public',

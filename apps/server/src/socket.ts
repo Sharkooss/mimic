@@ -36,7 +36,13 @@ import {
   type Room,
   type ServerPlayer,
 } from './game/rooms.js';
-import { maybeEndSeeking, sendCoHiders, sendSeekingTargets, startMatch } from './game/match.js';
+import {
+  maybeEndSeeking,
+  returnToLobby,
+  sendCoHiders,
+  sendSeekingTargets,
+  startMatch,
+} from './game/match.js';
 
 /** Délai de grâce (ms) avant de retirer un joueur déconnecté (fenêtre de reconnexion). */
 const RECONNECT_GRACE_MS = 30_000;
@@ -187,6 +193,19 @@ export function setupSocket(
       const res = startMatch(io, room);
       if (!res.ok) return ack({ ok: false, error: res.error ?? 'Impossible de démarrer.' });
       broadcastLobby(io); // le salon quitte le lobby → disparaît de la liste publique
+      ack({ ok: true });
+    });
+
+    socket.on(EVENTS.roomReturnToLobby, (ack) => {
+      const code = socket.data.roomCode;
+      const room = code ? getRoom(code) : undefined;
+      if (!room) return ack({ ok: false, error: 'Salon introuvable.' });
+      if (room.hostId !== socket.data.playerId) {
+        return ack({ ok: false, error: "Seul l'hôte peut relancer une partie." });
+      }
+      const res = returnToLobby(io, room);
+      if (!res.ok) return ack({ ok: false, error: res.error ?? 'Impossible de revenir au salon.' });
+      broadcastLobby(io); // le salon redevient rejoignable → réapparaît dans la liste publique
       ack({ ok: true });
     });
 

@@ -116,6 +116,40 @@ function finishMatch(io: IO, room: Room): void {
   io.to(room.code).emit(EVENTS.phaseChanged, 'finished', null);
 }
 
+/**
+ * Ramène un salon terminé au lobby pour rejouer avec le même groupe : réinitialise
+ * l'état de manche et les scores, sans toucher aux joueurs présents. Déclenché par
+ * l'hôte depuis l'écran de fin.
+ */
+export function returnToLobby(io: IO, room: Room): { ok: boolean; error?: string } {
+  if (room.phase !== 'finished') return { ok: false, error: 'La partie est encore en cours.' };
+  clearRoomTimer(room);
+  room.phase = 'lobby';
+  room.round = 0;
+  room.totalRounds = 0;
+  room.seekerId = null;
+  room.artwork = null;
+  room.phaseEndsAt = null;
+  room.seekingStartedAt = null;
+  room.artworkSequence = [];
+  room.seekerOrder = [];
+  for (const p of room.players.values()) {
+    p.score = 0;
+    p.role = null;
+    p.found = false;
+    p.foundAtMs = null;
+    p.placement = null;
+    p.pixels = null;
+    p.draftPixels = null;
+    p.camouflageScore = null;
+    p.clickCooldownUntil = 0;
+    p.matchStats = freshMatchStats();
+  }
+  broadcast(io, room);
+  io.to(room.code).emit(EVENTS.phaseChanged, 'lobby', null);
+  return { ok: true };
+}
+
 /** Applique une transition de phase avec timer autoritatif. */
 function setPhase(
   io: IO,

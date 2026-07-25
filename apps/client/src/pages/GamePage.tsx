@@ -5,13 +5,21 @@ import {
   MapPin,
   Medal,
   Palette,
+  RefreshCw,
   Search,
   Star,
   Timer,
   Trophy,
   VenetianMask,
 } from 'lucide-react';
-import { CHARACTER_SIZE, type CoHider, type RoomSnapshot, type RoundReveal } from '@mimic/shared';
+import {
+  CHARACTER_SIZE,
+  EVENTS,
+  type CoHider,
+  type RoomSnapshot,
+  type RoundReveal,
+} from '@mimic/shared';
+import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
 import { useCharacterStore } from '../store/characterStore.js';
 import { useCountdown } from '../hooks/useCountdown.js';
@@ -344,11 +352,21 @@ const PODIUM = [
 /** Classement final : podium (1er au centre, or) + classement complet (#22). */
 function FinalStandings({ room }: { room: RoomSnapshot }) {
   const myId = useGameStore((s) => s.playerId);
+  const [replaying, setReplaying] = useState(false);
   const ranked = [...room.players].sort((a, b) => b.score - a.score);
   const podium = ranked.slice(0, 3);
   // Ordre d'affichage gauche→droite : 2e, 1er (centre, surélevé), 3e.
   const order = podium.length >= 3 ? [1, 0, 2] : podium.length === 2 ? [1, 0] : [0];
   const winner = ranked[0];
+  const isHost = room.players.find((p) => p.id === myId)?.isHost ?? false;
+
+  const replay = () => {
+    setReplaying(true);
+    socket.emit(EVENTS.roomReturnToLobby, (res) => {
+      if (!res.ok) setReplaying(false);
+      // Succès : le snapshot repasse en `lobby`, la vue bascule d'elle-même.
+    });
+  };
 
   return (
     <div className="animate-slide-up space-y-6 rounded-2xl border border-line bg-surface p-6 shadow-soft">
@@ -414,11 +432,23 @@ function FinalStandings({ room }: { room: RoomSnapshot }) {
         </ol>
       )}
 
-      <div className="flex justify-center">
-        <Link
-          to="/"
-          className="rounded-xl border border-line px-5 py-2.5 text-sm font-semibold transition hover:border-muted/40"
-        >
+      <div className="flex flex-col items-center gap-2">
+        {isHost ? (
+          <button
+            onClick={replay}
+            disabled={replaying}
+            className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-sm font-semibold text-white shadow-pop transition hover:brightness-110 disabled:opacity-60"
+          >
+            <RefreshCw className={`h-4 w-4 ${replaying ? 'animate-spin' : ''}`} />
+            {replaying ? 'Retour au salon…' : 'Rejouer avec le même groupe'}
+          </button>
+        ) : (
+          <p className="flex items-center gap-2 text-sm text-muted">
+            <RefreshCw className="h-4 w-4" />
+            En attente de l’hôte pour relancer une partie…
+          </p>
+        )}
+        <Link to="/" className="text-sm font-medium text-muted transition hover:text-ink">
           Retour à l’accueil
         </Link>
       </div>
