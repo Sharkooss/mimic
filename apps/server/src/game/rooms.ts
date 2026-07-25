@@ -1,6 +1,7 @@
 import {
   LOBBY,
   MODE_META,
+  defaultSettings,
   type Artwork,
   type CharacterPlacement,
   type GameMode,
@@ -18,7 +19,7 @@ import {
  * Pour scaler horizontalement, prévoir un adaptateur Redis (voir ROADMAP).
  */
 
-export interface ServerPlayer extends PublicPlayer {
+export interface ServerPlayer extends Omit<PublicPlayer, 'ready'> {
   /** Socket courant (null si déconnecté en attente de reconnexion). */
   socketId: string | null;
   /** Secret de reconnexion (jamais diffusé). Le socket s'y authentifie. */
@@ -85,6 +86,8 @@ export interface Room {
   totalRounds: number;
   seekerId: string | null;
   phaseEndsAt: number | null;
+  /** Timestamp (ms epoch) de début de la phase courante (zoom progressif). */
+  phaseStartedAt: number | null;
   createdAt: number;
   /** Réglages de durées ajustables par l'hôte. */
   settings: RoomSettings;
@@ -128,8 +131,9 @@ export function createRoom(mode: GameMode, visibility: RoomVisibility = 'private
     totalRounds: 0,
     seekerId: null,
     phaseEndsAt: null,
+    phaseStartedAt: null,
     createdAt: Date.now(),
-    settings: { ...MODE_META[mode].durations },
+    settings: { ...defaultSettings(), ...MODE_META[mode].durations },
     artwork: null,
     seekingStartedAt: null,
     artworkSequence: [],
@@ -176,6 +180,7 @@ export function snapshot(room: Room): RoomSnapshot {
     artwork: room.artwork,
     seekerId: room.seekerId,
     phaseEndsAt: room.phaseEndsAt,
+    phaseStartedAt: room.phaseStartedAt,
     settings: { ...room.settings },
   };
 }
@@ -196,6 +201,7 @@ function publicView(p: ServerPlayer): PublicPlayer {
     connected: p.connected,
     isHost: p.isHost,
     score: p.score,
+    ready: Boolean(p.placement?.locked),
   };
 }
 

@@ -1,12 +1,15 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Globe, Lock, Palette, Search, Trash2 } from 'lucide-react';
+import { Globe, Lightbulb, Lock, Palette, Search, Trash2, ZoomIn } from 'lucide-react';
 import {
+  BOARD_BOUNDS,
   EVENTS,
   GAME_MODES,
   LOBBY,
   MODE_META,
   PHASE_BOUNDS,
+  ZOOM_MAX_BOUNDS,
+  ZOOM_STEP_BOUNDS,
   type RoomSettings,
 } from '@mimic/shared';
 import { socket } from '../lib/socket.js';
@@ -233,33 +236,156 @@ function SettingsPanel({ settings, isHost }: { settings: RoomSettings; isHost: b
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
         Réglages de la partie
       </h2>
-      <Card className="space-y-4 p-5">
-        <SettingSlider
-          label={
-            <>
-              <Palette className="h-4 w-4 text-muted" /> Temps de camouflage
-            </>
-          }
-          value={settings.camouflageSec}
-          min={PHASE_BOUNDS.camouflage.min}
-          max={PHASE_BOUNDS.camouflage.max}
-          disabled={!isHost}
-          onChange={(camouflageSec) => update({ camouflageSec })}
-        />
-        <SettingSlider
-          label={
-            <>
-              <Search className="h-4 w-4 text-muted" /> Temps de recherche
-            </>
-          }
-          value={settings.seekingSec}
-          min={PHASE_BOUNDS.seeking.min}
-          max={PHASE_BOUNDS.seeking.max}
-          disabled={!isHost}
-          onChange={(seekingSec) => update({ seekingSec })}
-        />
-        {!isHost && <p className="text-xs text-muted">Seul l’hôte peut changer les réglages.</p>}
+      <Card className="divide-y divide-line p-0">
+        {/* ── Camouflage ── */}
+        <div className="space-y-3 p-5">
+          <Toggle
+            icon={Palette}
+            label="Temps de camouflage limité"
+            desc="Sinon la traque démarre quand tous les cachés ont validé leur camouflage."
+            checked={settings.camouflageTimed}
+            disabled={!isHost}
+            onChange={(camouflageTimed) => update({ camouflageTimed })}
+          />
+          {settings.camouflageTimed && (
+            <SettingSlider
+              label="Durée du camouflage"
+              value={settings.camouflageSec}
+              min={PHASE_BOUNDS.camouflage.min}
+              max={PHASE_BOUNDS.camouflage.max}
+              disabled={!isHost}
+              onChange={(camouflageSec) => update({ camouflageSec })}
+            />
+          )}
+        </div>
+
+        {/* ── Recherche ── */}
+        <div className="space-y-3 p-5">
+          <Toggle
+            icon={Search}
+            label="Temps de recherche limité"
+            desc="Sinon la manche se termine quand le chercheur a tout trouvé (ou abandonne)."
+            checked={settings.seekingTimed}
+            disabled={!isHost}
+            onChange={(seekingTimed) => update({ seekingTimed })}
+          />
+          {settings.seekingTimed && (
+            <SettingSlider
+              label="Durée de la recherche"
+              value={settings.seekingSec}
+              min={PHASE_BOUNDS.seeking.min}
+              max={PHASE_BOUNDS.seeking.max}
+              disabled={!isHost}
+              onChange={(seekingSec) => update({ seekingSec })}
+            />
+          )}
+        </div>
+
+        {/* ── Zone de jeu ── */}
+        <div className="p-5">
+          <SettingSlider
+            label="Taille de la zone de jeu"
+            value={settings.boardSize}
+            min={BOARD_BOUNDS.min}
+            max={BOARD_BOUNDS.max}
+            step={20}
+            unit="px"
+            disabled={!isHost}
+            onChange={(boardSize) => update({ boardSize })}
+          />
+        </div>
+
+        {/* ── Zoom du chercheur ── */}
+        <div className="space-y-3 p-5">
+          <Toggle
+            icon={ZoomIn}
+            label="Zoom progressif du chercheur"
+            desc="Le chercheur démarre au zoom ×1 et débloque un palier au fil du temps."
+            checked={settings.progressiveZoom}
+            disabled={!isHost}
+            onChange={(progressiveZoom) => update({ progressiveZoom })}
+          />
+          {settings.progressiveZoom && (
+            <SettingSlider
+              label="Palier de zoom débloqué toutes les"
+              value={settings.zoomStepSec}
+              min={ZOOM_STEP_BOUNDS.min}
+              max={ZOOM_STEP_BOUNDS.max}
+              disabled={!isHost}
+              onChange={(zoomStepSec) => update({ zoomStepSec })}
+            />
+          )}
+          <SettingSlider
+            label="Zoom maximum"
+            value={settings.maxZoom}
+            min={ZOOM_MAX_BOUNDS.min}
+            max={ZOOM_MAX_BOUNDS.max}
+            step={1}
+            unit="×"
+            disabled={!isHost}
+            onChange={(maxZoom) => update({ maxZoom })}
+          />
+        </div>
+
+        {/* ── Indices ── */}
+        <div className="p-5">
+          <Toggle
+            icon={Lightbulb}
+            label="Zones d'indice"
+            desc="Révèle au chercheur des zones autour des cachés en fin de traque (mode minuté)."
+            checked={settings.hintsEnabled}
+            disabled={!isHost}
+            onChange={(hintsEnabled) => update({ hintsEnabled })}
+          />
+        </div>
+
+        {!isHost && (
+          <p className="p-5 text-xs text-muted">Seul l’hôte peut changer les réglages.</p>
+        )}
       </Card>
+    </div>
+  );
+}
+
+/** Interrupteur on/off d'un réglage (accessible, désactivé pour les non-hôtes). */
+function Toggle({
+  icon: Icon,
+  label,
+  desc,
+  checked,
+  disabled,
+  onChange,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  desc: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5 text-sm font-medium">
+          <Icon className="h-4 w-4 text-muted" /> {label}
+        </div>
+        <p className="mt-0.5 text-xs leading-snug text-muted">{desc}</p>
+      </div>
+      <button
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition disabled:cursor-not-allowed disabled:opacity-50 ${
+          checked ? 'bg-accent' : 'bg-line'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-soft transition-all ${
+            checked ? 'left-[1.375rem]' : 'left-0.5'
+          }`}
+        />
+      </button>
     </div>
   );
 }
@@ -269,6 +395,8 @@ function SettingSlider({
   value,
   min,
   max,
+  step = 5,
+  unit = 's',
   disabled,
   onChange,
 }: {
@@ -276,6 +404,8 @@ function SettingSlider({
   value: number;
   min: number;
   max: number;
+  step?: number;
+  unit?: string;
   disabled: boolean;
   onChange: (v: number) => void;
 }) {
@@ -285,22 +415,28 @@ function SettingSlider({
         <span className="flex items-center gap-1.5 text-sm font-medium">{label}</span>
         <span className="font-mono text-sm tabular-nums text-accent">
           {value}
-          <span className="ml-0.5 text-xs text-muted">s</span>
+          <span className="ml-0.5 text-xs text-muted">{unit}</span>
         </span>
       </div>
       <input
         type="range"
         min={min}
         max={max}
-        step={5}
+        step={step}
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full accent-accent disabled:cursor-not-allowed disabled:opacity-50"
       />
       <div className="mt-0.5 flex justify-between text-[10px] text-muted">
-        <span>{min}s</span>
-        <span>{max}s</span>
+        <span>
+          {min}
+          {unit}
+        </span>
+        <span>
+          {max}
+          {unit}
+        </span>
       </div>
     </div>
   );

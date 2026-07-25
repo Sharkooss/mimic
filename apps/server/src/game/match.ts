@@ -69,9 +69,37 @@ function beginRound(io: IO, room: Room): void {
     p.role = p.id === room.seekerId ? 'seeker' : 'hider';
   }
 
-  setPhase(io, room, 'camouflage', room.settings.camouflageSec, () => {
-    setPhase(io, room, 'seeking', room.settings.seekingSec, () => endRound(io, room));
-  });
+  const timed = room.settings.camouflageTimed;
+  setPhase(io, room, 'camouflage', timed ? room.settings.camouflageSec : null, () =>
+    startSeekingPhase(io, room),
+  );
+}
+
+/** Passe en phase de recherche (chrono optionnel selon les réglages). */
+function startSeekingPhase(io: IO, room: Room): void {
+  const timed = room.settings.seekingTimed;
+  setPhase(io, room, 'seeking', timed ? room.settings.seekingSec : null, () => endRound(io, room));
+}
+
+/**
+ * Démarre la traque dès que tous les cachés connectés ont validé leur camouflage.
+ * En mode minuté c'est un raccourci (on n'attend pas la fin du chrono) ; en mode
+ * libre (camouflageTimed=false) c'est le seul déclencheur. Appelé après chaque
+ * verrouillage de caché.
+ */
+export function maybeStartSeeking(io: IO, room: Room): void {
+  if (room.phase !== 'camouflage') return;
+  const hiders = [...room.players.values()].filter((p) => p.role === 'hider' && p.connected);
+  if (hiders.length > 0 && hiders.some((h) => !h.placement?.locked)) return;
+  clearRoomTimer(room);
+  startSeekingPhase(io, room);
+}
+
+/** Met fin à la traque en cours (chercheur, utile en mode sans chrono). */
+export function endSeekingEarly(io: IO, room: Room): void {
+  if (room.phase !== 'seeking') return;
+  clearRoomTimer(room);
+  endRound(io, room);
 }
 
 /**
@@ -112,6 +140,7 @@ function finishMatch(io: IO, room: Room): void {
   room.seekerId = null;
   room.artwork = null;
   room.phaseEndsAt = null;
+  room.phaseStartedAt = null;
   broadcast(io, room);
   io.to(room.code).emit(EVENTS.phaseChanged, 'finished', null);
 }
@@ -130,6 +159,7 @@ export function returnToLobby(io: IO, room: Room): { ok: boolean; error?: string
   room.seekerId = null;
   room.artwork = null;
   room.phaseEndsAt = null;
+  room.phaseStartedAt = null;
   room.seekingStartedAt = null;
   room.artworkSequence = [];
   room.seekerOrder = [];
@@ -150,26 +180,31 @@ export function returnToLobby(io: IO, room: Room): { ok: boolean; error?: string
   return { ok: true };
 }
 
-/** Applique une transition de phase avec timer autoritatif. */
+/**
+ * Applique une transition de phase avec timer autoritatif. `durationSec` à `null`
+ * = phase non minutée (aucun chrono) : la transition suivante est déclenchée par
+ * un autre événement (tous validés, tous trouvés, ou action du chercheur).
+ */
 function setPhase(
   io: IO,
   room: Room,
   phase: GamePhase,
-  durationSec: number,
+  durationSec: number | null,
   next: () => void,
 ): void {
   clearRoomTimer(room);
   room.phase = phase;
+  room.phaseStartedAt = Date.now();
   if (phase === 'seeking') {
     room.seekingStartedAt = Date.now();
     autoLockHiders(room);
     sendSeekingTargets(io, room);
     sendCoHiders(io, room);
   }
-  room.phaseEndsAt = Date.now() + durationSec * 1000;
+  room.phaseEndsAt = durationSec != null ? Date.now() + durationSec * 1000 : null;
   broadcast(io, room);
   io.to(room.code).emit(EVENTS.phaseChanged, phase, room.phaseEndsAt);
-  room.timer = setTimeout(next, durationSec * 1000);
+  if (durationSec != null) room.timer = setTimeout(next, durationSec * 1000);
 }
 
 /**

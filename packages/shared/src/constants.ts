@@ -21,9 +21,16 @@ export const PHASE_DURATIONS = {
 
 /** Bornes (secondes) que l'hôte peut choisir pour chaque phase réglable. */
 export const PHASE_BOUNDS = {
-  camouflage: { min: 15, max: 120 },
-  seeking: { min: 30, max: 240 },
+  camouflage: { min: 15, max: 180 },
+  seeking: { min: 30, max: 300 },
 } as const;
+
+/** Bornes des autres réglages configurables dans le lobby. */
+export const BOARD_BOUNDS = { min: 480, max: 1200 } as const;
+/** Zoom maximal autorisé au chercheur (plafond réglable). */
+export const ZOOM_MAX_BOUNDS = { min: 2, max: 6 } as const;
+/** Délai (s) entre deux paliers de zoom quand le zoom progressif est actif. */
+export const ZOOM_STEP_BOUNDS = { min: 5, max: 60 } as const;
 
 /** Cooldown (ms) après un clic raté du chercheur, anti-spam. */
 export const WRONG_CLICK_COOLDOWN_MS = 3000;

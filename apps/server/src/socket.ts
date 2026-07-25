@@ -37,7 +37,9 @@ import {
   type ServerPlayer,
 } from './game/rooms.js';
 import {
+  endSeekingEarly,
   maybeEndSeeking,
+  maybeStartSeeking,
   returnToLobby,
   sendCoHiders,
   sendSeekingTargets,
@@ -163,8 +165,8 @@ export function setupSocket(
       }
       room.mode = parsed.data.mode;
       // Changer de mode réaligne les durées sur son preset (l'hôte peut ensuite
-      // les ré-ajuster au curseur).
-      room.settings = { ...MODE_META[parsed.data.mode].durations };
+      // les ré-ajuster). Les autres réglages (bascules, zoom, zone) sont conservés.
+      room.settings = { ...room.settings, ...MODE_META[parsed.data.mode].durations };
       broadcastSnapshot(io, room);
       broadcastLobby(io);
       ack({ ok: true });
@@ -180,10 +182,8 @@ export function setupSocket(
       }
       const parsed = setSettingsSchema.safeParse(payload);
       if (!parsed.success) return ack({ ok: false, error: 'Réglages invalides.' });
-      if (parsed.data.camouflageSec !== undefined) {
-        room.settings.camouflageSec = parsed.data.camouflageSec;
-      }
-      if (parsed.data.seekingSec !== undefined) room.settings.seekingSec = parsed.data.seekingSec;
+      // Applique chaque champ fourni (mise à jour partielle validée par le schéma).
+      room.settings = { ...room.settings, ...parsed.data };
       broadcastSnapshot(io, room);
       ack({ ok: true });
     });
@@ -296,6 +296,10 @@ export function setupSocket(
       player.placement = { ...placement, locked: true };
       player.camouflageScore = breakdown.score;
       ack({ ok: true, breakdown });
+      broadcastSnapshot(io, room); // met à jour le compteur « X/Y ont validé »
+      // Tous les cachés ont validé → on lance la traque (immédiat en mode libre,
+      // raccourci en mode minuté).
+      maybeStartSeeking(io, room);
     });
 
     socket.on(EVENTS.seekerClick, (payload, ack) => {
@@ -356,6 +360,19 @@ export function setupSocket(
       });
       ack({ ok: true, hit: true, playerId: target.id });
       maybeEndSeeking(io, room);
+    });
+
+    socket.on(EVENTS.seekerEnd, (ack) => {
+      const code = socket.data.roomCode;
+      const room = code ? getRoom(code) : undefined;
+      if (!room || room.phase !== 'seeking') {
+        return ack({ ok: false, error: "La traque n'est pas en cours." });
+      }
+      if (room.seekerId !== socket.data.playerId) {
+        return ack({ ok: false, error: 'Action réservée au chercheur.' });
+      }
+      ack({ ok: true });
+      endSeekingEarly(io, room);
     });
 
     // Curseur du chercheur : relayé en temps réel aux AUTRES joueurs (spectacle

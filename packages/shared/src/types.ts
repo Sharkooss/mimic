@@ -1,3 +1,4 @@
+import { PHASE_DURATIONS } from './constants.js';
 import type { CharacterRotation, Difficulty, GameMode, RoomVisibility } from './constants.js';
 
 /** Résumé d'un salon public listé dans le navigateur de parties. */
@@ -13,12 +14,41 @@ export interface RoomListing {
 /** Phases de la boucle de jeu. */
 export type GamePhase = 'lobby' | 'camouflage' | 'seeking' | 'results' | 'finished';
 
-/** Réglages de partie ajustables par l'hôte dans le lobby (durées en secondes). */
+/** Réglages de partie ajustables par l'hôte dans le lobby. */
 export interface RoomSettings {
-  /** Temps de peinture/placement laissé aux cachés. */
+  /** Temps de peinture/placement laissé aux cachés (s). */
   camouflageSec: number;
-  /** Temps de traque du chercheur. */
+  /** false = pas de chrono : la traque démarre quand tous les cachés ont validé. */
+  camouflageTimed: boolean;
+  /** Temps de traque du chercheur (s). */
   seekingSec: number;
+  /** false = pas de chrono : la manche finit quand tous les cachés sont trouvés. */
+  seekingTimed: boolean;
+  /** Taille (px) de la zone de jeu du chercheur (hauteur du plateau). */
+  boardSize: number;
+  /** true = le chercheur démarre au zoom ×1 et débloque un palier toutes les zoomStepSec. */
+  progressiveZoom: boolean;
+  /** Délai (s) entre deux paliers de zoom (si progressiveZoom). */
+  zoomStepSec: number;
+  /** Zoom maximal autorisé au chercheur. */
+  maxZoom: number;
+  /** Affiche les zones d'indice au chercheur en fin de traque. */
+  hintsEnabled: boolean;
+}
+
+/** Réglages par défaut d'un salon (valeurs cohérentes prêtes à jouer). */
+export function defaultSettings(): RoomSettings {
+  return {
+    camouflageSec: PHASE_DURATIONS.camouflage,
+    camouflageTimed: true,
+    seekingSec: PHASE_DURATIONS.seeking,
+    seekingTimed: true,
+    boardSize: 820,
+    progressiveZoom: true,
+    zoomStepSec: 20,
+    maxZoom: 4,
+    hintsEnabled: true,
+  };
 }
 
 /** Rôle d'un joueur pendant une manche. */
@@ -122,6 +152,8 @@ export interface PublicPlayer {
   isHost: boolean;
   /** Score cumulé sur la partie en cours. */
   score: number;
+  /** Caché ayant validé son camouflage sur la manche courante (progression). */
+  ready: boolean;
 }
 
 /** État d'un joueur pendant une manche (côté serveur, partiellement privé). */
@@ -179,6 +211,8 @@ export interface RoomSnapshot {
   seekerId: string | null;
   /** Timestamp (ms epoch serveur) de fin de la phase courante, null si non minutée. */
   phaseEndsAt: number | null;
+  /** Timestamp (ms epoch serveur) de début de la phase courante (pour le zoom progressif). */
+  phaseStartedAt: number | null;
   /** Réglages de durées choisis par l'hôte. */
   settings: RoomSettings;
 }

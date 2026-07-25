@@ -1,11 +1,14 @@
 import { z } from 'zod';
 import {
+  BOARD_BOUNDS,
   CHARACTER_ROTATIONS,
   CHARACTER_SIZE,
   GAME_MODES,
   LOBBY,
   PHASE_BOUNDS,
   ROOM_VISIBILITIES,
+  ZOOM_MAX_BOUNDS,
+  ZOOM_STEP_BOUNDS,
 } from './constants.js';
 import type { CharacterRotation, GameMode } from './constants.js';
 import type {
@@ -54,7 +57,7 @@ export const seekerClickSchema = z.object({
 
 export const setModeSchema = z.object({ mode: z.enum(GAME_MODES) });
 
-/** Réglages de durées (hôte, lobby uniquement). Champs optionnels : mise à jour partielle. */
+/** Réglages de partie (hôte, lobby uniquement). Champs optionnels : mise à jour partielle. */
 export const setSettingsSchema = z
   .object({
     camouflageSec: z
@@ -63,14 +66,21 @@ export const setSettingsSchema = z
       .min(PHASE_BOUNDS.camouflage.min)
       .max(PHASE_BOUNDS.camouflage.max)
       .optional(),
+    camouflageTimed: z.boolean().optional(),
     seekingSec: z
       .number()
       .int()
       .min(PHASE_BOUNDS.seeking.min)
       .max(PHASE_BOUNDS.seeking.max)
       .optional(),
+    seekingTimed: z.boolean().optional(),
+    boardSize: z.number().int().min(BOARD_BOUNDS.min).max(BOARD_BOUNDS.max).optional(),
+    progressiveZoom: z.boolean().optional(),
+    zoomStepSec: z.number().int().min(ZOOM_STEP_BOUNDS.min).max(ZOOM_STEP_BOUNDS.max).optional(),
+    maxZoom: z.number().int().min(ZOOM_MAX_BOUNDS.min).max(ZOOM_MAX_BOUNDS.max).optional(),
+    hintsEnabled: z.boolean().optional(),
   })
-  .refine((d) => d.camouflageSec !== undefined || d.seekingSec !== undefined, {
+  .refine((d) => Object.values(d).some((v) => v !== undefined), {
     message: 'Aucun réglage fourni.',
   });
 
@@ -140,6 +150,8 @@ export interface ClientToServerEvents {
   ) => void;
   /** Position du curseur du chercheur pendant la traque (relayée aux autres joueurs). */
   'seeker:cursor': (payload: SeekerCursorPayload) => void;
+  /** Le chercheur met fin à la traque en cours (utile en mode sans chrono). */
+  'seeker:end': (ack: (res: AckResult) => void) => void;
 }
 
 /** Révélation d'un caché trouvé : diffusée à toute la salle pour l'afficher à sa cachette. */
@@ -267,6 +279,7 @@ export const EVENTS = {
   characterLock: 'character:lock',
   seekerClick: 'seeker:click',
   seekerCursor: 'seeker:cursor',
+  seekerEnd: 'seeker:end',
   phaseChanged: 'phase:changed',
   playerFound: 'player:found',
   roundResults: 'round:results',

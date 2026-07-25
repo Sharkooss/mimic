@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  CheckCircle2,
   EyeOff,
+  Flag,
+  Infinity as InfinityIcon,
   MapPin,
   Medal,
   Palette,
@@ -82,7 +85,11 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
           {!room.artwork ? (
             <Waiting text="En attente de l’œuvre…" />
           ) : room.phase === 'camouflage' && !isSeeker ? (
-            <HiderBoard room={room} artworkId={room.artwork.id} />
+            <HiderBoard
+              room={room}
+              artworkId={room.artwork.id}
+              boardSize={room.settings.boardSize}
+            />
           ) : (
             <SeekerStage
               artwork={room.artwork}
@@ -92,14 +99,8 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
               showLabels={isHiderSeeking}
               myId={myId}
               focusTarget={focus}
-              elapsedFrac={
-                room.phase === 'seeking' &&
-                isSeeker &&
-                remaining != null &&
-                room.settings.seekingSec > 0
-                  ? Math.max(0, Math.min(1, 1 - remaining / room.settings.seekingSec))
-                  : null
-              }
+              settings={room.settings}
+              phaseStartedAt={room.phaseStartedAt}
             />
           )}
         </main>
@@ -131,7 +132,15 @@ export function GamePage({ room }: { room: RoomSnapshot }): JSX.Element {
  * montage des enfants) et charge la silhouette de base. La validation est
  * automatique en fin de chrono — le serveur garde le dernier état relayé.
  */
-function HiderBoard({ room, artworkId }: { room: RoomSnapshot; artworkId: string }) {
+function HiderBoard({
+  room,
+  artworkId,
+  boardSize,
+}: {
+  room: RoomSnapshot;
+  artworkId: string;
+  boardSize: number;
+}) {
   const resetRound = useRef<number | null>(null);
   if (resetRound.current !== room.round) {
     resetRound.current = room.round;
@@ -154,7 +163,7 @@ function HiderBoard({ room, artworkId }: { room: RoomSnapshot; artworkId: string
     };
   }, [room.round]);
 
-  return <CamouflageBoard key={artworkId} artwork={room.artwork!} live />;
+  return <CamouflageBoard key={artworkId} artwork={room.artwork!} live boardSize={boardSize} />;
 }
 
 /** Colonne d'infos du plein écran : manche, chrono, consigne, œuvre, roster. */
@@ -176,6 +185,7 @@ function GameSidebar({
   const camo = room.phase === 'camouflage';
   const a = room.artwork;
   const urgent = remaining != null && remaining <= 10;
+  const untimed = remaining == null; // phase active sans chrono (réglage libre)
 
   const consigne: { Icon: ComponentType<{ className?: string }>; title: string; text: string } =
     camo
@@ -183,7 +193,9 @@ function GameSidebar({
         ? {
             Icon: Search,
             title: 'Tu es le chercheur',
-            text: 'Observe l’œuvre et mémorise les cachettes possibles. La traque commence à la fin du chrono.',
+            text: room.settings.camouflageTimed
+              ? 'Observe l’œuvre et mémorise les cachettes possibles. La traque commence à la fin du chrono.'
+              : 'Observe l’œuvre et mémorise les cachettes. La traque commence quand tous les cachés ont validé.',
           }
         : {
             Icon: Palette,
@@ -216,14 +228,25 @@ function GameSidebar({
       </div>
 
       <div
-        className={`rounded-xl border p-3 text-center font-mono text-4xl tabular-nums transition-colors ${
+        className={`flex items-center justify-center rounded-xl border p-3 text-center font-mono tabular-nums transition-colors ${
           urgent
-            ? 'animate-heartbeat border-red-200 bg-red-50 text-red-600'
-            : 'border-line bg-canvas text-accent'
+            ? 'animate-heartbeat border-red-200 bg-red-50 text-red-600 text-4xl'
+            : untimed
+              ? 'border-line bg-canvas text-2xl text-muted'
+              : 'border-line bg-canvas text-4xl text-accent'
         }`}
       >
-        {formatTime(remaining)}
+        {untimed ? (
+          <span className="flex items-center gap-1.5 text-lg font-semibold">
+            <InfinityIcon className="h-5 w-5" /> Sans limite
+          </span>
+        ) : (
+          formatTime(remaining)
+        )}
       </div>
+
+      {/* Actions selon le rôle : valider son camouflage / terminer la traque */}
+      <SidebarActions room={room} isSeeker={isSeeker} />
 
       <div className="rounded-xl bg-accent-soft p-3 text-sm">
         <div className="mb-1 flex items-center gap-1.5 font-semibold">
@@ -271,11 +294,17 @@ function GameSidebar({
       {camo && !isSeeker && (
         <p className="flex items-start gap-1.5 rounded-xl border border-dashed border-line p-3 text-xs leading-relaxed text-muted">
           <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>
-            Ton camouflage est{' '}
-            <span className="font-semibold text-ink">validé automatiquement</span> à la fin du
-            chrono — rien à confirmer.
-          </span>
+          {room.settings.camouflageTimed ? (
+            <span>
+              Validé <span className="font-semibold text-ink">automatiquement</span> à la fin du
+              chrono — ou valide dès maintenant pour lancer la traque plus tôt.
+            </span>
+          ) : (
+            <span>
+              Pas de chrono : la traque démarre{' '}
+              <span className="font-semibold text-ink">quand tous les cachés ont validé</span>.
+            </span>
+          )}
         </p>
       )}
 
@@ -297,6 +326,75 @@ function GameSidebar({
       )}
     </aside>
   );
+}
+
+/**
+ * Actions contextuelles de la barre latérale : le caché valide son camouflage
+ * (fige placement + peinture ; dès que tous ont validé, la traque démarre), le
+ * chercheur peut terminer la recherche (utile quand la traque n'est pas minutée).
+ */
+function SidebarActions({ room, isSeeker }: { room: RoomSnapshot; isSeeker: boolean }) {
+  const locked = useCharacterStore((s) => s.locked);
+  const setLocked = useCharacterStore((s) => s.setLocked);
+  const [busy, setBusy] = useState(false);
+
+  if (room.phase === 'camouflage' && !isSeeker) {
+    const hiders = room.players.filter((p) => p.id !== room.seekerId);
+    const validated = hiders.filter((p) => p.ready).length;
+    const validate = () => {
+      const st = useCharacterStore.getState();
+      if (!st.pixels) return;
+      setBusy(true);
+      socket.emit(
+        EVENTS.characterLock,
+        { placement: { x: st.x, y: st.y, rotation: st.rotation }, pixels: Array.from(st.pixels) },
+        (res) => {
+          setBusy(false);
+          if (res.ok) setLocked(true);
+        },
+      );
+    };
+    if (locked) {
+      return (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span>
+            Camouflage validé — en attente des autres{' '}
+            <span className="font-semibold">
+              ({validated}/{hiders.length})
+            </span>
+          </span>
+        </div>
+      );
+    }
+    return (
+      <button
+        onClick={validate}
+        disabled={busy}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-pop transition hover:brightness-110 disabled:opacity-60"
+      >
+        <CheckCircle2 className="h-4 w-4" /> Valider mon camouflage
+      </button>
+    );
+  }
+
+  if (room.phase === 'seeking' && isSeeker) {
+    const end = () => {
+      setBusy(true);
+      socket.emit(EVENTS.seekerEnd, () => setBusy(false));
+    };
+    return (
+      <button
+        onClick={end}
+        disabled={busy}
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-muted transition hover:border-red-200 hover:text-red-600 disabled:opacity-60"
+      >
+        <Flag className="h-4 w-4" /> Terminer la recherche
+      </button>
+    );
+  }
+
+  return null;
 }
 
 function formatTime(remaining: number | null): string {

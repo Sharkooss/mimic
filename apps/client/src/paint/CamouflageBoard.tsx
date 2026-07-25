@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
   Hand,
   Minus,
@@ -73,7 +73,15 @@ const SIZES = [1, 2, 3, 5, 8] as const;
  * Le dernier état (position + peinture) est relayé en continu au serveur, qui
  * verrouille automatiquement le camouflage à la fin du chrono.
  */
-export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; live?: boolean }) {
+export function CamouflageBoard({
+  artwork,
+  live = false,
+  boardSize = 820,
+}: {
+  artwork: Artwork;
+  live?: boolean;
+  boardSize?: number;
+}) {
   const paint = useCharacterPainting();
   const x = useCharacterStore((s) => s.x);
   const y = useCharacterStore((s) => s.y);
@@ -93,18 +101,23 @@ export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; l
   const [artColors, setArtColors] = useState<string[]>([]);
   const [others, setOthers] = useState<Record<string, Other>>({});
   const [cam, setCam] = useState<Camera>({ zoom: 1, x: 0, y: 0 });
-  const [vp, setVp] = useState({ w: 960, h: 640 });
 
-  // Le plateau épouse son conteneur (plein écran, pas de scroll).
-  useLayoutEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const update = () => setVp({ w: el.clientWidth, h: el.clientHeight });
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
+  // Plateau FIXE dimensionné sur la fenêtre + le réglage de taille (pas de
+  // ResizeObserver sur soi-même : évite la boucle de rétrécissement).
+  const [winSize, setWinSize] = useState(() => ({
+    w: typeof window !== 'undefined' ? window.innerWidth : 1280,
+    h: typeof window !== 'undefined' ? window.innerHeight : 800,
+  }));
+  useEffect(() => {
+    const on = () => setWinSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
   }, []);
+  const vp = useMemo(() => {
+    const availW = Math.max(320, winSize.w - 240 - 256 - 32); // - barre latérale - outils - marges
+    const availH = Math.max(320, winSize.h - 40);
+    return { w: availW, h: Math.max(320, Math.min(boardSize, availH)) };
+  }, [winSize.w, winSize.h, boardSize]);
 
   const fitScale = useMemo(
     () => Math.min(vp.w / artwork.width, vp.h / artwork.height),
@@ -436,90 +449,96 @@ export function CamouflageBoard({ artwork, live = false }: { artwork: Artwork; l
 
   return (
     <div className="flex h-full min-h-0 w-full">
-      {/* Tableau : toute la place disponible */}
-      <div ref={wrapRef} className="relative min-w-0 flex-1 overflow-hidden bg-night-800">
+      {/* Tableau : zone fixe et large, centrée */}
+      <div className="flex min-w-0 flex-1 items-center justify-center overflow-auto p-4">
         <div
-          ref={viewportRef}
-          onPointerDown={onBgDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onWheel={onWheel}
-          className="absolute inset-0"
-          style={{ touchAction: 'none', cursor }}
+          ref={wrapRef}
+          className="relative overflow-hidden rounded-2xl bg-night-800 shadow-frame ring-1 ring-line/60"
+          style={{ width: vp.w, height: vp.h }}
         >
-          {/* Couche œuvre */}
           <div
-            className="absolute left-0 top-0 origin-top-left"
-            style={{
-              width: artwork.width * fitScale,
-              height: artwork.height * fitScale,
-              transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.zoom})`,
-              background: artworkBg(artwork),
-            }}
+            ref={viewportRef}
+            onPointerDown={onBgDown}
+            onPointerMove={onMove}
+            onPointerUp={onUp}
+            onWheel={onWheel}
+            className="absolute inset-0"
+            style={{ touchAction: 'none', cursor }}
           >
-            {/* Autres cachés (présence) */}
-            {Object.entries(others).map(([id, o]) => (
-              <div
-                key={id}
-                className="pointer-events-none absolute opacity-70"
-                style={{
-                  left: o.x * fitScale,
-                  top: o.y * fitScale,
-                  width: S * fitScale,
-                  height: S * fitScale,
-                }}
-              >
-                <PixelSprite pixels={o.pixels} size={S * fitScale} rotation={o.rotation} />
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/50 px-1 text-[8px] text-white">
-                  {o.pseudo}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Cadre zone peignable */}
-          <div
-            className="pointer-events-none absolute rounded-sm ring-2 ring-gold/70"
-            style={{
-              left: cam.x + x * scale,
-              top: cam.y + y * scale,
-              width: charDisp,
-              height: charDisp,
-            }}
-          />
-          {/* Canvas du perso (dans l'espace écran, aligné à la caméra) */}
-          <canvas
-            ref={charRef}
-            width={S}
-            height={S}
-            onPointerDown={onCharDown}
-            className="absolute touch-none"
-            style={{
-              left: cam.x + x * scale,
-              top: cam.y + y * scale,
-              width: charDisp,
-              height: charDisp,
-              imageRendering: 'pixelated',
-              transform: `rotate(${rotation}deg)`,
-              cursor,
-            }}
-          />
-
-          {/* HUD zoom */}
-          <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg bg-surface/90 p-1 shadow-soft">
-            <HudBtn onClick={() => zoomBy(1 / 1.3, vp.w / 2, vp.h / 2)}>
-              <Minus className="h-4 w-4" />
-            </HudBtn>
-            <span className="w-9 text-center font-mono text-xs">{cam.zoom.toFixed(1)}×</span>
-            <HudBtn onClick={() => zoomBy(1.3, vp.w / 2, vp.h / 2)}>
-              <Plus className="h-4 w-4" />
-            </HudBtn>
-          </div>
-          {space && (
-            <div className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-night/80 px-2 py-1 text-xs text-white">
-              <Pipette className="h-3.5 w-3.5" /> Pipette (Espace) — clique sur le tableau
+            {/* Couche œuvre */}
+            <div
+              className="absolute left-0 top-0 origin-top-left"
+              style={{
+                width: artwork.width * fitScale,
+                height: artwork.height * fitScale,
+                transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.zoom})`,
+                background: artworkBg(artwork),
+              }}
+            >
+              {/* Autres cachés (présence) */}
+              {Object.entries(others).map(([id, o]) => (
+                <div
+                  key={id}
+                  className="pointer-events-none absolute opacity-70"
+                  style={{
+                    left: o.x * fitScale,
+                    top: o.y * fitScale,
+                    width: S * fitScale,
+                    height: S * fitScale,
+                  }}
+                >
+                  <PixelSprite pixels={o.pixels} size={S * fitScale} rotation={o.rotation} />
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/50 px-1 text-[8px] text-white">
+                    {o.pseudo}
+                  </span>
+                </div>
+              ))}
             </div>
-          )}
+
+            {/* Cadre zone peignable */}
+            <div
+              className="pointer-events-none absolute rounded-sm ring-2 ring-gold/70"
+              style={{
+                left: cam.x + x * scale,
+                top: cam.y + y * scale,
+                width: charDisp,
+                height: charDisp,
+              }}
+            />
+            {/* Canvas du perso (dans l'espace écran, aligné à la caméra) */}
+            <canvas
+              ref={charRef}
+              width={S}
+              height={S}
+              onPointerDown={onCharDown}
+              className="absolute touch-none"
+              style={{
+                left: cam.x + x * scale,
+                top: cam.y + y * scale,
+                width: charDisp,
+                height: charDisp,
+                imageRendering: 'pixelated',
+                transform: `rotate(${rotation}deg)`,
+                cursor,
+              }}
+            />
+
+            {/* HUD zoom */}
+            <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg bg-surface/90 p-1 shadow-soft">
+              <HudBtn onClick={() => zoomBy(1 / 1.3, vp.w / 2, vp.h / 2)}>
+                <Minus className="h-4 w-4" />
+              </HudBtn>
+              <span className="w-9 text-center font-mono text-xs">{cam.zoom.toFixed(1)}×</span>
+              <HudBtn onClick={() => zoomBy(1.3, vp.w / 2, vp.h / 2)}>
+                <Plus className="h-4 w-4" />
+              </HudBtn>
+            </div>
+            {space && (
+              <div className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-night/80 px-2 py-1 text-xs text-white">
+                <Pipette className="h-3.5 w-3.5" /> Pipette (Espace) — clique sur le tableau
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

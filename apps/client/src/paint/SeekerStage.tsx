@@ -1,12 +1,13 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CHARACTER_SIZE,
   EVENTS,
   WRONG_CLICK_COOLDOWN_MS,
   type Artwork,
   type PlayerFoundReveal,
+  type RoomSettings,
 } from '@mimic/shared';
-import { Check, Eye, Minus, Plus, Search, Target, Timer } from 'lucide-react';
+import { Check, Eye, Lock, Minus, Plus, Search, Target, Timer } from 'lucide-react';
 import { socket } from '../lib/socket.js';
 import { useGameStore } from '../store/gameStore.js';
 import { PixelSprite } from './PixelSprite.js';
@@ -49,7 +50,8 @@ export function SeekerStage({
   showLabels = false,
   myId = null,
   focusTarget = null,
-  elapsedFrac = null,
+  settings,
+  phaseStartedAt = null,
 }: {
   artwork: Artwork;
   interactive: boolean;
@@ -58,8 +60,10 @@ export function SeekerStage({
   showLabels?: boolean;
   myId?: string | null;
   focusTarget?: { x: number; y: number; key: number } | null;
-  /** Fraction du temps de recherche écoulée (chercheur) → zones d'indice. */
-  elapsedFrac?: number | null;
+  /** Réglages de la partie (taille de zone, zoom progressif, indices). */
+  settings: RoomSettings;
+  /** Début de la phase de recherche (ms epoch serveur) pour le zoom progressif. */
+  phaseStartedAt?: number | null;
 }): JSX.Element {
   const outerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -68,7 +72,23 @@ export function SeekerStage({
   const remoteCursor = useGameStore((s) => s.seekerCursor);
   const lastCursor = useRef(0);
 
-  const [vp, setVp] = useState({ w: 960, h: 640 });
+  // Zone de jeu FIXE, dimensionnée sur la fenêtre + le réglage de taille (pas de
+  // ResizeObserver sur soi-même : évite la boucle de rétrécissement perpétuel).
+  const [winSize, setWinSize] = useState(() => ({
+    w: typeof window !== 'undefined' ? window.innerWidth : 1280,
+    h: typeof window !== 'undefined' ? window.innerHeight : 800,
+  }));
+  useEffect(() => {
+    const on = () => setWinSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  const vp = useMemo(() => {
+    const availW = Math.max(360, winSize.w - 240 - 32); // - sidebar - marges
+    const availH = Math.max(320, winSize.h - 44 - 40); // - entête - marges
+    return { w: availW, h: Math.max(320, Math.min(settings.boardSize, availH)) };
+  }, [winSize.w, winSize.h, settings.boardSize]);
+
   const [cam, setCam] = useState<Camera>({ zoom: 1, x: 0, y: 0 });
   const [foundIds, setFoundIds] = useState<Set<string>>(new Set());
   const [cooldownUntil, setCooldownUntil] = useState(0);
@@ -79,22 +99,36 @@ export function SeekerStage({
     null,
   );
 
-  // Le plateau épouse son conteneur (plein écran, pas de scroll).
-  useLayoutEffect(() => {
-    const el = outerRef.current;
-    if (!el) return;
-    const update = () => setVp({ w: el.clientWidth, h: el.clientHeight });
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
   const fitScale = useMemo(
     () => Math.min(vp.w / artwork.width, vp.h / artwork.height),
     [vp.w, vp.h, artwork.width, artwork.height],
   );
   const scale = fitScale * cam.zoom;
+
+  // Zoom progressif du chercheur : bloqué à ×1 puis un palier débloqué toutes les
+  // `zoomStepSec`, jusqu'à `maxZoom`. Sinon plafond direct (min avec l'œuvre).
+  const effMaxZoom = Math.min(artwork.maxZoom, settings.maxZoom);
+  const elapsedSec = phaseStartedAt ? Math.max(0, (now - phaseStartedAt) / 1000) : 0;
+  const allowedZoom =
+    interactive && settings.progressiveZoom
+      ? Math.min(effMaxZoom, 1 + Math.floor(elapsedSec / Math.max(1, settings.zoomStepSec)))
+      : effMaxZoom;
+  const nextUnlockIn =
+    interactive && settings.progressiveZoom && allowedZoom < effMaxZoom
+      ? Math.ceil(settings.zoomStepSec - (elapsedSec % settings.zoomStepSec))
+      : null;
+
+  // Horloge de la traque (zoom progressif + fraction pour les indices).
+  useEffect(() => {
+    if (!interactive) return;
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [interactive]);
+
+  // Ne jamais dépasser le zoom autorisé (clamp quand un palier n'est pas encore débloqué).
+  useEffect(() => {
+    setCam((c) => (c.zoom > allowedZoom ? { ...c, zoom: allowedZoom } : c));
+  }, [allowedZoom]);
 
   // Reset trouvailles à chaque œuvre (nouvelle manche).
   useEffect(() => {
@@ -215,7 +249,7 @@ export function SeekerStage({
 
   const zoomBy = (factor: number, px: number, py: number) => {
     setCam((c) => {
-      const z = Math.max(1, Math.min(artwork.maxZoom, c.zoom * factor));
+      const z = Math.max(1, Math.min(allowedZoom, c.zoom * factor));
       const s0 = fitScale * c.zoom;
       const s1 = fitScale * z;
       if (s0 === 0) return c;
@@ -231,15 +265,20 @@ export function SeekerStage({
   // Focalise la caméra sur un joueur (déclenché depuis la liste des cachés).
   useEffect(() => {
     if (!focusTarget) return;
-    const z = Math.min(artwork.maxZoom, 3);
+    const z = Math.min(allowedZoom, 3);
     const s1 = fitScale * z;
     setCam({ zoom: z, x: vp.w / 2 - focusTarget.x * s1, y: vp.h / 2 - focusTarget.y * s1 });
-  }, [focusTarget, fitScale, vp.w, vp.h, artwork.maxZoom]);
+  }, [focusTarget, fitScale, vp.w, vp.h, allowedZoom]);
 
   const cursor = interactive ? (onCooldown ? 'not-allowed' : 'crosshair') : 'grab';
   const shown = players;
 
   // Zones d'indice (chercheur, après HINT_START_FRAC) sur les cachés non trouvés.
+  // Seulement si activées ET si la traque est minutée (sinon pas de fraction de temps).
+  const elapsedFrac =
+    settings.hintsEnabled && settings.seekingTimed && settings.seekingSec > 0
+      ? Math.max(0, Math.min(1, elapsedSec / settings.seekingSec))
+      : null;
   const hintR = interactive && elapsedFrac != null ? hintRadius(elapsedFrac, artwork) : null;
   const hintZones =
     hintR != null
@@ -279,146 +318,168 @@ export function SeekerStage({
         )}
       </div>
 
-      <div ref={outerRef} className="relative min-h-0 flex-1 overflow-hidden bg-night-800">
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4">
         <div
-          ref={viewportRef}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onWheel={onWheel}
-          className="absolute inset-0"
-          style={{ touchAction: 'none', cursor }}
+          ref={outerRef}
+          className="relative overflow-hidden rounded-2xl bg-night-800 shadow-frame ring-1 ring-line/60"
+          style={{ width: vp.w, height: vp.h }}
         >
           <div
-            className="absolute left-0 top-0 origin-top-left"
-            style={{
-              width: artwork.width * fitScale,
-              height: artwork.height * fitScale,
-              transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.zoom})`,
-              background: artworkBg(artwork),
-            }}
+            ref={viewportRef}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onWheel={onWheel}
+            className="absolute inset-0"
+            style={{ touchAction: 'none', cursor }}
           >
-            {/* Personnages sur l'œuvre (cibles du chercheur, ou co-cachés) */}
-            {shown.map((t) => {
-              const isFound = foundIds.has(t.id);
-              const isSelf = myId != null && t.id === myId;
-              return (
-                <div
-                  key={t.id}
-                  className="pointer-events-none absolute"
-                  style={{
-                    left: t.x * fitScale,
-                    top: t.y * fitScale,
-                    width: S * fitScale,
-                    height: S * fitScale,
-                  }}
-                >
-                  <PixelSprite pixels={t.pixels} size={S * fitScale} rotation={t.rotation} />
-                  {/* Label (côté caché) : pseudo au-dessus, soi-même surligné */}
-                  {showLabels && t.pseudo && (
-                    <>
-                      <span
-                        className={`absolute inset-0 rounded-sm ring-1 ${
-                          isSelf ? 'ring-gold' : 'ring-white/40'
-                        }`}
-                      />
-                      <span
-                        className={`absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-soft ${
-                          isSelf ? 'bg-gold' : 'bg-night/70'
-                        }`}
-                      >
-                        {isSelf ? 'toi' : t.pseudo}
-                      </span>
-                    </>
-                  )}
-                  {isFound && (
-                    <>
-                      {/* Halo qui pulse pour attirer l'œil sur la capture */}
-                      <span
-                        className="animate-pulse-ring absolute left-1/2 top-1/2 rounded-full border-2 border-emerald-400"
-                        style={{ width: S * fitScale, height: S * fitScale }}
-                      />
-                      <span className="animate-pop-in absolute inset-0 rounded-sm ring-2 ring-emerald-400" />
-                      <span className="animate-pop-in absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow-soft">
-                        <Check className="h-3 w-3" strokeWidth={3} />
-                      </span>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Zones d'indice « projecteur » (chercheur) */}
-          <HintOverlay zones={hintZones} camX={cam.x} camY={cam.y} scale={scale} />
-
-          {!interactive && remoteCursor && (
             <div
-              className="pointer-events-none absolute z-20 -translate-x-1 -translate-y-1 transition-[left,top] duration-75 ease-linear"
-              style={{ left: cam.x + remoteCursor.x * scale, top: cam.y + remoteCursor.y * scale }}
+              className="absolute left-0 top-0 origin-top-left"
+              style={{
+                width: artwork.width * fitScale,
+                height: artwork.height * fitScale,
+                transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.zoom})`,
+                background: artworkBg(artwork),
+              }}
             >
-              {/* Halo pulsant qui suit le chercheur : rend la traque « vivante » */}
-              <span className="animate-pulse-ring absolute left-2 top-2 h-8 w-8 rounded-full border-2 border-gold" />
-              <svg width="26" height="26" viewBox="0 0 24 24" className="relative drop-shadow-md">
-                <path
-                  d="M5 3l14 8-6 1.5L9.5 19 5 3z"
-                  fill="#f59e0b"
-                  stroke="#1c1917"
-                  strokeWidth="1.5"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="ml-4 inline-flex items-center gap-1 whitespace-nowrap rounded bg-gold/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                <Search className="h-2.5 w-2.5" /> chercheur
-              </span>
+              {/* Personnages sur l'œuvre (cibles du chercheur, ou co-cachés) */}
+              {shown.map((t) => {
+                const isFound = foundIds.has(t.id);
+                const isSelf = myId != null && t.id === myId;
+                return (
+                  <div
+                    key={t.id}
+                    className="pointer-events-none absolute"
+                    style={{
+                      left: t.x * fitScale,
+                      top: t.y * fitScale,
+                      width: S * fitScale,
+                      height: S * fitScale,
+                    }}
+                  >
+                    <PixelSprite pixels={t.pixels} size={S * fitScale} rotation={t.rotation} />
+                    {/* Label (côté caché) : pseudo au-dessus, soi-même surligné */}
+                    {showLabels && t.pseudo && (
+                      <>
+                        <span
+                          className={`absolute inset-0 rounded-sm ring-1 ${
+                            isSelf ? 'ring-gold' : 'ring-white/40'
+                          }`}
+                        />
+                        <span
+                          className={`absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-soft ${
+                            isSelf ? 'bg-gold' : 'bg-night/70'
+                          }`}
+                        >
+                          {isSelf ? 'toi' : t.pseudo}
+                        </span>
+                      </>
+                    )}
+                    {isFound && (
+                      <>
+                        {/* Halo qui pulse pour attirer l'œil sur la capture */}
+                        <span
+                          className="animate-pulse-ring absolute left-1/2 top-1/2 rounded-full border-2 border-emerald-400"
+                          style={{ width: S * fitScale, height: S * fitScale }}
+                        />
+                        <span className="animate-pop-in absolute inset-0 rounded-sm ring-2 ring-emerald-400" />
+                        <span className="animate-pop-in absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow-soft">
+                          <Check className="h-3 w-3" strokeWidth={3} />
+                        </span>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          )}
 
-          {/* Impact d'un clic : onde + particules + libellé flottant, pile au clic */}
-          {impact && (
-            <div
-              key={impact.key}
-              className="pointer-events-none absolute z-30"
-              style={{ left: impact.x, top: impact.y }}
-            >
-              <Ripple
-                x={0}
-                y={0}
-                color={impact.ok ? 'rgba(52,211,153,0.85)' : 'rgba(248,113,113,0.85)'}
-              />
-              {impact.ok && <Burst x={0} y={0} count={14} />}
-              <span
-                className={`animate-float-up absolute left-0 top-0 inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-bold text-white shadow-pop ${
-                  impact.ok ? 'bg-emerald-500' : 'bg-red-500'
-                }`}
+            {/* Zones d'indice « projecteur » (chercheur) */}
+            <HintOverlay zones={hintZones} camX={cam.x} camY={cam.y} scale={scale} />
+
+            {!interactive && remoteCursor && (
+              <div
+                className="pointer-events-none absolute z-20 -translate-x-1 -translate-y-1 transition-[left,top] duration-75 ease-linear"
+                style={{
+                  left: cam.x + remoteCursor.x * scale,
+                  top: cam.y + remoteCursor.y * scale,
+                }}
               >
-                {impact.ok ? (
-                  <>
-                    <Target className="h-4 w-4" /> Trouvé !
-                  </>
-                ) : (
-                  'Raté…'
-                )}
-              </span>
-            </div>
-          )}
+                {/* Halo pulsant qui suit le chercheur : rend la traque « vivante » */}
+                <span className="animate-pulse-ring absolute left-2 top-2 h-8 w-8 rounded-full border-2 border-gold" />
+                <svg width="26" height="26" viewBox="0 0 24 24" className="relative drop-shadow-md">
+                  <path
+                    d="M5 3l14 8-6 1.5L9.5 19 5 3z"
+                    fill="#f59e0b"
+                    stroke="#1c1917"
+                    strokeWidth="1.5"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span className="ml-4 inline-flex items-center gap-1 whitespace-nowrap rounded bg-gold/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  <Search className="h-2.5 w-2.5" /> chercheur
+                </span>
+              </div>
+            )}
 
-          {onCooldown && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/90 px-4 py-1 font-mono text-sm text-white">
-                <Timer className="h-4 w-4" /> {(cooldownLeft / 1000).toFixed(1)}s
-              </span>
-            </div>
-          )}
+            {/* Impact d'un clic : onde + particules + libellé flottant, pile au clic */}
+            {impact && (
+              <div
+                key={impact.key}
+                className="pointer-events-none absolute z-30"
+                style={{ left: impact.x, top: impact.y }}
+              >
+                <Ripple
+                  x={0}
+                  y={0}
+                  color={impact.ok ? 'rgba(52,211,153,0.85)' : 'rgba(248,113,113,0.85)'}
+                />
+                {impact.ok && <Burst x={0} y={0} count={14} />}
+                <span
+                  className={`animate-float-up absolute left-0 top-0 inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-bold text-white shadow-pop ${
+                    impact.ok ? 'bg-emerald-500' : 'bg-red-500'
+                  }`}
+                >
+                  {impact.ok ? (
+                    <>
+                      <Target className="h-4 w-4" /> Trouvé !
+                    </>
+                  ) : (
+                    'Raté…'
+                  )}
+                </span>
+              </div>
+            )}
 
-          <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg bg-surface/90 p-1 shadow-soft">
-            <HudBtn onClick={() => zoomBy(1 / 1.3, vp.w / 2, vp.h / 2)}>
-              <Minus className="h-4 w-4" />
-            </HudBtn>
-            <span className="w-9 text-center font-mono text-xs">{cam.zoom.toFixed(1)}×</span>
-            <HudBtn onClick={() => zoomBy(1.3, vp.w / 2, vp.h / 2)}>
-              <Plus className="h-4 w-4" />
-            </HudBtn>
+            {onCooldown && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/90 px-4 py-1 font-mono text-sm text-white">
+                  <Timer className="h-4 w-4" /> {(cooldownLeft / 1000).toFixed(1)}s
+                </span>
+              </div>
+            )}
+
+            {/* Palier de zoom verrouillé (zoom progressif) : compte à rebours du prochain cran */}
+            {interactive && nextUnlockIn != null && (
+              <div className="pointer-events-none absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-lg bg-night/80 px-2.5 py-1 text-xs text-white">
+                <Lock className="h-3.5 w-3.5 text-gold" />
+                Zoom ×{allowedZoom + 1} dans {nextUnlockIn}s
+              </div>
+            )}
+
+            <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-lg bg-surface/90 p-1 shadow-soft">
+              <HudBtn onClick={() => zoomBy(1 / 1.3, vp.w / 2, vp.h / 2)}>
+                <Minus className="h-4 w-4" />
+              </HudBtn>
+              <span className="w-12 text-center font-mono text-xs">
+                {cam.zoom.toFixed(1)}×<span className="text-muted">/{allowedZoom}</span>
+              </span>
+              <HudBtn
+                onClick={() => zoomBy(1.3, vp.w / 2, vp.h / 2)}
+                disabled={cam.zoom >= allowedZoom - 0.01}
+              >
+                <Plus className="h-4 w-4" />
+              </HudBtn>
+            </div>
           </div>
         </div>
       </div>
@@ -426,11 +487,20 @@ export function SeekerStage({
   );
 }
 
-function HudBtn({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+function HudBtn({
+  children,
+  onClick,
+  disabled = false,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       onClick={onClick}
-      className="grid h-8 min-w-8 place-items-center rounded-md border border-line bg-surface px-2 text-sm transition hover:border-muted/40"
+      disabled={disabled}
+      className="grid h-8 min-w-8 place-items-center rounded-md border border-line bg-surface px-2 text-sm transition hover:border-muted/40 disabled:cursor-not-allowed disabled:opacity-40"
     >
       {children}
     </button>
